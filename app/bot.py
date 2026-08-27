@@ -7,12 +7,19 @@ from telegram.ext import (
 )
 
 from app.config import TELEGRAM_BOT_TOKEN
+
 from app.handlers.start import start_command
+
 from app.handlers.expense import (
-    expense_callback_handler,
     expense_message,
+    expense_callback_handler,
 )
-from app.handlers.report import daily_report
+
+from app.handlers.report import (
+    daily_report,
+    monthly_report,
+)
+
 from database.db import init_db
 
 
@@ -26,6 +33,10 @@ def main():
         .token(TELEGRAM_BOT_TOKEN)
         .build()
     )
+
+    # =========================
+    # COMMAND HANDLERS
+    # =========================
 
     # /start
     application.add_handler(
@@ -43,11 +54,22 @@ def main():
         )
     )
 
-    # Pesan teks pengeluaran
+    # /bulan
+    application.add_handler(
+        CommandHandler(
+            "bulan",
+            monthly_report,
+        )
+    )
+
+    # =========================
+    # MESSAGE HANDLERS
+    # =========================
+
+    # Pesan teks untuk mencatat pengeluaran
     application.add_handler(
         MessageHandler(
-            filters.TEXT
-            & ~filters.COMMAND,
+            filters.TEXT & ~filters.COMMAND,
             expense_message,
         )
     )
@@ -61,6 +83,7 @@ def main():
         "🤖 Expense Bot sedang berjalan..."
     )
 
+    # Menjalankan bot
     application.run_polling(
         allowed_updates=Update.ALL_TYPES
     )

@@ -4,7 +4,9 @@ from sqlalchemy.orm import sessionmaker
 from database.models import Base
 
 
-DATABASE_URL = "sqlite:///database/expenses.db"
+DATABASE_URL = (
+    "sqlite:///database/expenses.db"
+)
 
 
 engine = create_engine(
@@ -23,6 +25,7 @@ SessionLocal = sessionmaker(
 
 
 def init_db():
+
     Base.metadata.create_all(
         bind=engine
     )

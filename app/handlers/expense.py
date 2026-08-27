@@ -5,6 +5,7 @@ from telegram import (
     InlineKeyboardMarkup,
     Update,
 )
+
 from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
@@ -22,11 +23,15 @@ def parse_expense(text: str):
     Makan siang 25.000
     Makan siang 25,000
     Bensin 25 ribu
+    Bensin 25 rb
     """
 
     text = text.strip()
 
-    # Format: 25 ribu / 25 rb
+    # ==================================
+    # FORMAT: 25 RIBU / 25 RB
+    # ==================================
+
     match = re.search(
         r"(\d+(?:[.,]\d+)?)\s*(ribu|rb)",
         text,
@@ -34,10 +39,15 @@ def parse_expense(text: str):
     )
 
     if match:
-        number = match.group(1).replace(",", ".")
+        number = match.group(1).replace(
+            ",",
+            ".",
+        )
 
         try:
-            amount = int(float(number) * 1000)
+            amount = int(
+                float(number) * 1000
+            )
         except ValueError:
             return None
 
@@ -51,7 +61,10 @@ def parse_expense(text: str):
 
         return description, amount
 
-    # Format angka biasa di akhir kalimat
+    # ==================================
+    # FORMAT ANGKA BIASA
+    # ==================================
+
     match = re.search(
         r"(\d[\d.,]*)$",
         text,
@@ -74,7 +87,10 @@ def parse_expense(text: str):
     except ValueError:
         return None
 
-    description = text[:match.start()].strip()
+    description = (
+        text[:match.start()]
+        .strip()
+    )
 
     if not description:
         return None
@@ -82,9 +98,12 @@ def parse_expense(text: str):
     return description, amount
 
 
-def detect_category(description: str) -> str:
+def detect_category(
+    description: str,
+) -> str:
     """
-    Menentukan kategori berdasarkan keyword sederhana.
+    Menentukan kategori berdasarkan
+    keyword sederhana.
     """
 
     text = description.lower()
@@ -145,8 +164,13 @@ def detect_category(description: str) -> str:
     return "Lainnya"
 
 
-def format_rupiah(amount: int) -> str:
-    return f"Rp{amount:,}".replace(",", ".")
+def format_rupiah(
+    amount: int,
+) -> str:
+    return f"Rp{amount:,}".replace(
+        ",",
+        ".",
+    )
 
 
 async def expense_message(
@@ -154,7 +178,7 @@ async def expense_message(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     """
-    Menerima pesan seperti:
+    Menerima pesan:
 
     Makan siang 25000
     Bensin 50 ribu
@@ -173,7 +197,8 @@ async def expense_message(
 
     if not result:
         await update.message.reply_text(
-            "❌ Format pengeluaran belum dikenali.\n\n"
+            "❌ Format pengeluaran "
+            "belum dikenali.\n\n"
             "Contoh:\n"
             "• Makan siang 25000\n"
             "• Bensin 50 ribu\n"
@@ -189,8 +214,11 @@ async def expense_message(
 
     user_id = update.effective_user.id
 
-    # Simpan sementara sebelum konfirmasi
-    context.user_data["pending_expense"] = {
+    # Simpan sementara
+    # sebelum konfirmasi
+    context.user_data[
+        "pending_expense"
+    ] = {
         "user_id": user_id,
         "description": description,
         "amount": amount,
@@ -217,9 +245,11 @@ async def expense_message(
     await update.message.reply_text(
         "💰 *Pengeluaran ditemukan*\n\n"
         f"📝 Deskripsi: {description}\n"
-        f"💵 Nominal: {format_rupiah(amount)}\n"
+        f"💵 Nominal: "
+        f"{format_rupiah(amount)}\n"
         f"🏷️ Kategori: {category}\n\n"
-        "Apakah ingin menyimpan transaksi ini?",
+        "Apakah ingin menyimpan "
+        "transaksi ini?",
         reply_markup=reply_markup,
         parse_mode="Markdown",
     )
@@ -230,7 +260,10 @@ async def expense_callback(
     context: ContextTypes.DEFAULT_TYPE,
 ):
     """
-    Menangani tombol Simpan / Batal.
+    Menangani tombol:
+
+    Simpan
+    Batal
     """
 
     query = update.callback_query
@@ -244,7 +277,10 @@ async def expense_callback(
         "pending_expense"
     )
 
-    # Batal
+    # ==================================
+    # BATAL
+    # ==================================
+
     if query.data == "expense_cancel":
 
         context.user_data.pop(
@@ -258,12 +294,16 @@ async def expense_callback(
 
         return
 
-    # Simpan
+    # ==================================
+    # SIMPAN
+    # ==================================
+
     if query.data == "expense_save":
 
         if not pending:
             await query.edit_message_text(
-                "❌ Data pengeluaran sudah tidak tersedia."
+                "❌ Data pengeluaran "
+                "sudah tidak tersedia."
             )
             return
 
@@ -272,32 +312,41 @@ async def expense_callback(
         try:
             expense = Expense(
                 user_id=pending["user_id"],
-                description=pending["description"],
+                description=pending[
+                    "description"
+                ],
                 amount=pending["amount"],
                 category=pending["category"],
             )
 
             db.add(expense)
+
             db.commit()
+
             db.refresh(expense)
 
             await query.edit_message_text(
-                "✅ *Pengeluaran berhasil disimpan!*\n\n"
+                "✅ *Pengeluaran "
+                "berhasil disimpan!*\n\n"
                 f"📝 {expense.description}\n"
-                f"💵 {format_rupiah(expense.amount)}\n"
+                f"💵 "
+                f"{format_rupiah(expense.amount)}\n"
                 f"🏷️ {expense.category}",
                 parse_mode="Markdown",
             )
 
         except Exception:
+
             db.rollback()
 
             await query.edit_message_text(
-                "❌ Terjadi kesalahan saat menyimpan "
+                "❌ Terjadi kesalahan "
+                "saat menyimpan "
                 "pengeluaran."
             )
 
         finally:
+
             db.close()
 
             context.user_data.pop(
@@ -306,7 +355,9 @@ async def expense_callback(
             )
 
 
-expense_callback_handler = CallbackQueryHandler(
-    expense_callback,
-    pattern=r"^expense_(save|cancel)$",
+expense_callback_handler = (
+    CallbackQueryHandler(
+        expense_callback,
+        pattern=r"^expense_(save|cancel)$",
+    )
 )
