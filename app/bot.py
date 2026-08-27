@@ -43,6 +43,15 @@ from app.handlers.report import (
 
 
 # ============================================================
+# STATISTICS
+# ============================================================
+
+from app.handlers.statistics import (
+    statistics_command,
+)
+
+
+# ============================================================
 # RECEIPT
 # ============================================================
 
@@ -127,6 +136,7 @@ async def text_router(
         )
 
         if handled:
+
             return
 
     # ========================================================
@@ -143,6 +153,7 @@ async def text_router(
         )
 
         if handled:
+
             return
 
     # ========================================================
@@ -151,9 +162,6 @@ async def text_router(
 
     receipt_edit_state = (
         context.user_data.get(
-            "receipt_edit_field"
-        )
-        or context.user_data.get(
             "editing_receipt_field"
         )
     )
@@ -241,6 +249,17 @@ def main():
         CommandHandler(
             "tanggal",
             date_report,
+        )
+    )
+
+    # ========================================================
+    # STATISTICS
+    # ========================================================
+
+    application.add_handler(
+        CommandHandler(
+            "statistik",
+            statistics_command,
         )
     )
 
@@ -350,12 +369,21 @@ def main():
     )
 
     # ========================================================
+    # EXPENSE CALLBACK
+    # ========================================================
+
+    application.add_handler(
+        expense_callback_handler
+    )
+
+    # ========================================================
     # ALL TEXT INPUT
     # ========================================================
 
     application.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
+            filters.TEXT
+            & ~filters.COMMAND,
             text_router,
         )
     )
@@ -378,4 +406,5 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
+
     main()
