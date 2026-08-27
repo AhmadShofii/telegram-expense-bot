@@ -63,6 +63,9 @@ from app.handlers.receipt import (
 from app.handlers.history import (
     history_command,
     history_callback_handler,
+    delete_expense_confirmation_handler,
+    delete_expense_handler,
+    delete_expense_cancel_handler,
 )
 
 
@@ -80,13 +83,13 @@ from database.db import init_db
 def main():
 
     # ========================================================
-    # INITIALIZE DATABASE
+    # DATABASE
     # ========================================================
 
     init_db()
 
     # ========================================================
-    # CREATE APPLICATION
+    # APPLICATION
     # ========================================================
 
     application = (
@@ -98,7 +101,7 @@ def main():
     )
 
     # ========================================================
-    # /START
+    # START
     # ========================================================
 
     application.add_handler(
@@ -109,7 +112,7 @@ def main():
     )
 
     # ========================================================
-    # /HARI
+    # REPORT - HARI
     # ========================================================
 
     application.add_handler(
@@ -120,7 +123,7 @@ def main():
     )
 
     # ========================================================
-    # /BULAN
+    # REPORT - BULAN
     # ========================================================
 
     application.add_handler(
@@ -131,7 +134,7 @@ def main():
     )
 
     # ========================================================
-    # /REKAP
+    # REPORT - REKAP
     # ========================================================
 
     application.add_handler(
@@ -142,7 +145,7 @@ def main():
     )
 
     # ========================================================
-    # /TANGGAL
+    # REPORT - TANGGAL
     # ========================================================
 
     application.add_handler(
@@ -153,7 +156,7 @@ def main():
     )
 
     # ========================================================
-    # /RIWAYAT
+    # HISTORY
     # ========================================================
 
     application.add_handler(
@@ -169,6 +172,30 @@ def main():
 
     application.add_handler(
         history_callback_handler
+    )
+
+    # ========================================================
+    # DELETE CONFIRMATION
+    # ========================================================
+
+    application.add_handler(
+        delete_expense_confirmation_handler
+    )
+
+    # ========================================================
+    # DELETE EXPENSE
+    # ========================================================
+
+    application.add_handler(
+        delete_expense_handler
+    )
+
+    # ========================================================
+    # DELETE CANCEL
+    # ========================================================
+
+    application.add_handler(
+        delete_expense_cancel_handler
     )
 
     # ========================================================
@@ -216,8 +243,6 @@ def main():
 
     # ========================================================
     # RECEIPT EDIT TEXT
-    #
-    # Harus sebelum expense_message.
     # ========================================================
 
     application.add_handler(
@@ -229,7 +254,7 @@ def main():
     )
 
     # ========================================================
-    # EXPENSE CALLBACK
+    # MANUAL EXPENSE CALLBACK
     # ========================================================
 
     application.add_handler(
@@ -249,7 +274,7 @@ def main():
     )
 
     # ========================================================
-    # START BOT
+    # RUN
     # ========================================================
 
     print(

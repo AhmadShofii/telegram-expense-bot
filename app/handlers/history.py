@@ -16,6 +16,13 @@ from database.models import Expense
 
 
 # ============================================================
+# CONSTANT
+# ============================================================
+
+PER_PAGE = 5
+
+
+# ============================================================
 # FORMAT RUPIAH
 # ============================================================
 
@@ -45,6 +52,51 @@ def category_icon(category: str) -> str:
 
 
 # ============================================================
+# GET EXPENSES
+# ============================================================
+
+def get_expenses(
+    user_id: int,
+    page: int,
+):
+    offset = page * PER_PAGE
+
+    db = SessionLocal()
+
+    try:
+
+        statement = (
+            select(Expense)
+            .where(
+                Expense.user_id == user_id
+            )
+            .order_by(
+                Expense.expense_date.desc(),
+                Expense.created_at.desc(),
+            )
+            .offset(offset)
+            .limit(PER_PAGE + 1)
+        )
+
+        expenses = db.scalars(
+            statement
+        ).all()
+
+        has_next = (
+            len(expenses) > PER_PAGE
+        )
+
+        return (
+            expenses[:PER_PAGE],
+            has_next,
+        )
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
 # BUILD HISTORY MESSAGE
 # ============================================================
 
@@ -53,16 +105,17 @@ def build_history_message(
     page: int,
 ) -> str:
 
-    per_page = 5
-    offset = page * per_page
-
     message = (
         "📋 *Riwayat Pengeluaran*\n\n"
     )
 
+    start_number = (
+        page * PER_PAGE
+    ) + 1
+
     for index, expense in enumerate(
         expenses,
-        start=offset + 1,
+        start=start_number,
     ):
 
         if expense.expense_date:
@@ -107,19 +160,57 @@ def build_history_message(
 
 
 # ============================================================
-# BUILD NAVIGATION
+# BUILD HISTORY KEYBOARD
 # ============================================================
 
-def build_navigation(
+def build_history_keyboard(
+    expenses,
     page: int,
     has_next: bool,
 ):
 
-    buttons = []
+    keyboard = []
+
+    # --------------------------------------------------------
+    # DELETE BUTTON
+    # --------------------------------------------------------
+
+    for expense in expenses:
+
+        description = (
+            expense.description
+            or "Transaksi"
+        )
+
+        if len(description) > 20:
+
+            description = (
+                description[:20]
+                + "..."
+            )
+
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    f"🗑️ {description}",
+                    callback_data=(
+                        f"expense_delete_"
+                        f"{expense.id}_"
+                        f"{page}"
+                    ),
+                )
+            ]
+        )
+
+    # --------------------------------------------------------
+    # PAGINATION
+    # --------------------------------------------------------
+
+    navigation = []
 
     if page > 0:
 
-        buttons.append(
+        navigation.append(
             InlineKeyboardButton(
                 "⬅️ Sebelumnya",
                 callback_data=(
@@ -130,7 +221,7 @@ def build_navigation(
 
     if has_next:
 
-        buttons.append(
+        navigation.append(
             InlineKeyboardButton(
                 "➡️ Berikutnya",
                 callback_data=(
@@ -139,12 +230,14 @@ def build_navigation(
             )
         )
 
-    if not buttons:
+    if navigation:
 
-        return None
+        keyboard.append(
+            navigation
+        )
 
     return InlineKeyboardMarkup(
-        [buttons]
+        keyboard
     )
 
 
@@ -165,155 +258,91 @@ async def show_history(
         update.effective_user.id
     )
 
-    per_page = 5
+    if page < 0:
+        page = 0
 
-    offset = page * per_page
+    expenses, has_next = get_expenses(
+        user_id,
+        page,
+    )
 
-    db = SessionLocal()
+    # ========================================================
+    # EMPTY PAGE
+    # ========================================================
 
-    try:
+    if not expenses:
 
-        # Ambil 1 data ekstra untuk
-        # mengetahui apakah ada halaman berikutnya.
-        statement = (
-            select(Expense)
-            .where(
-                Expense.user_id == user_id
+        # Kalau halaman > 0, kembali
+        # ke halaman sebelumnya.
+        if page > 0:
+
+            await show_history(
+                update,
+                context,
+                page=page - 1,
             )
-            .order_by(
-                Expense.expense_date.desc(),
-                Expense.created_at.desc(),
-            )
-            .offset(offset)
-            .limit(per_page + 1)
-        )
-
-        expenses = db.scalars(
-            statement
-        ).all()
-
-        has_next = (
-            len(expenses)
-            > per_page
-        )
-
-        expenses = expenses[
-            :per_page
-        ]
-
-        # ====================================================
-        # EMPTY
-        # ====================================================
-
-        if not expenses:
-
-            message = (
-                "📋 *Riwayat Pengeluaran*\n\n"
-                "Belum ada transaksi."
-            )
-
-            if update.callback_query:
-
-                await update.callback_query.edit_message_text(
-
-                    message,
-
-                    parse_mode="Markdown",
-
-                )
-
-            elif update.message:
-
-                await update.message.reply_text(
-
-                    message,
-
-                    parse_mode="Markdown",
-
-                )
 
             return
 
-        # ====================================================
-        # MESSAGE
-        # ====================================================
-
-        message = build_history_message(
-            expenses,
-            page,
-        )
-
-        # ====================================================
-        # NAVIGATION
-        # ====================================================
-
-        markup = build_navigation(
-            page,
-            has_next,
-        )
-
-        # ====================================================
-        # CALLBACK UPDATE
-        # ====================================================
-
-        if update.callback_query:
-
-            await update.callback_query.edit_message_text(
-
-                message,
-
-                reply_markup=markup,
-
-                parse_mode="Markdown",
-
-            )
-
-        # ====================================================
-        # NORMAL MESSAGE
-        # ====================================================
-
-        elif update.message:
-
-            await update.message.reply_text(
-
-                message,
-
-                reply_markup=markup,
-
-                parse_mode="Markdown",
-
-            )
-
-    except Exception as error:
-
-        print(
-            "History error:"
-        )
-
-        print(
-            repr(error)
-        )
-
-        error_message = (
-            "❌ Terjadi kesalahan "
-            "saat mengambil riwayat."
+        message = (
+            "📋 *Riwayat Pengeluaran*\n\n"
+            "Belum ada transaksi."
         )
 
         if update.callback_query:
 
             await update.callback_query.edit_message_text(
-                error_message
+                message,
+                parse_mode="Markdown",
             )
 
         elif update.message:
 
             await update.message.reply_text(
-                error_message
+                message,
+                parse_mode="Markdown",
             )
 
-    finally:
+        return
 
-        db.close()
+    # ========================================================
+    # BUILD MESSAGE
+    # ========================================================
+
+    message = build_history_message(
+        expenses,
+        page,
+    )
+
+    markup = build_history_keyboard(
+        expenses,
+        page,
+        has_next,
+    )
+
+    # ========================================================
+    # CALLBACK
+    # ========================================================
+
+    if update.callback_query:
+
+        await update.callback_query.edit_message_text(
+            message,
+            reply_markup=markup,
+            parse_mode="Markdown",
+        )
+
+    # ========================================================
+    # MESSAGE
+    # ========================================================
+
+    elif update.message:
+
+        await update.message.reply_text(
+            message,
+            reply_markup=markup,
+            parse_mode="Markdown",
+        )
 
 
 # ============================================================
@@ -333,7 +362,7 @@ async def history_command(
 
 
 # ============================================================
-# HISTORY PAGINATION
+# PAGINATION
 # ============================================================
 
 async def history_page(
@@ -362,14 +391,375 @@ async def history_page(
         AttributeError,
     ):
 
-        await query.answer(
-            "Halaman tidak valid.",
-            show_alert=True,
+        return
+
+    await show_history(
+        update,
+        context,
+        page=page,
+    )
+
+
+# ============================================================
+# DELETE CONFIRMATION
+# ============================================================
+
+async def delete_expense_confirmation(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    if not query:
+        return
+
+    await query.answer()
+
+    try:
+
+        parts = query.data.split(
+            "_"
+        )
+
+        # expense_delete_ID_PAGE
+        expense_id = int(
+            parts[2]
+        )
+
+        page = int(
+            parts[3]
+        )
+
+    except (
+        ValueError,
+        IndexError,
+    ):
+
+        await query.edit_message_text(
+            "❌ Data transaksi tidak valid."
         )
 
         return
 
-    if page < 0:
+    user_id = (
+        update.effective_user.id
+    )
+
+    db = SessionLocal()
+
+    try:
+
+        statement = (
+            select(Expense)
+            .where(
+                Expense.id == expense_id,
+                Expense.user_id == user_id,
+            )
+        )
+
+        expense = db.scalar(
+            statement
+        )
+
+        if not expense:
+
+            await query.edit_message_text(
+                "❌ Transaksi tidak ditemukan."
+            )
+
+            return
+
+        if expense.expense_date:
+
+            date_text = (
+                expense.expense_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+        else:
+
+            date_text = "--"
+
+        message = (
+
+            "⚠️ *Konfirmasi Penghapusan*\n\n"
+
+            f"🏪 *{expense.description}*\n"
+
+            f"📅 {date_text}\n"
+
+            f"💰 "
+            f"{format_rupiah(expense.amount)}\n"
+
+            f"🏷️ {expense.category}\n\n"
+
+            "Yakin ingin menghapus "
+            "transaksi ini?"
+
+        )
+
+        keyboard = [
+
+            [
+
+                InlineKeyboardButton(
+                    "✅ Ya, Hapus",
+                    callback_data=(
+                        f"expense_confirm_delete_"
+                        f"{expense.id}_"
+                        f"{page}"
+                    ),
+                ),
+
+                InlineKeyboardButton(
+                    "❌ Batal",
+                    callback_data=(
+                        f"expense_delete_cancel_"
+                        f"{page}"
+                    ),
+                ),
+
+            ]
+
+        ]
+
+        await query.edit_message_text(
+
+            message,
+
+            reply_markup=(
+                InlineKeyboardMarkup(
+                    keyboard
+                )
+            ),
+
+            parse_mode="Markdown",
+
+        )
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# DELETE EXPENSE
+# ============================================================
+
+async def delete_expense(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    if not query:
+        return
+
+    await query.answer()
+
+    try:
+
+        parts = query.data.split(
+            "_"
+        )
+
+        # expense_confirm_delete_ID_PAGE
+        expense_id = int(
+            parts[3]
+        )
+
+        page = int(
+            parts[4]
+        )
+
+    except (
+        ValueError,
+        IndexError,
+    ):
+
+        await query.edit_message_text(
+            "❌ Data transaksi tidak valid."
+        )
+
+        return
+
+    user_id = (
+        update.effective_user.id
+    )
+
+    db = SessionLocal()
+
+    try:
+
+        statement = (
+            select(Expense)
+            .where(
+                Expense.id == expense_id,
+                Expense.user_id == user_id,
+            )
+        )
+
+        expense = db.scalar(
+            statement
+        )
+
+        # ====================================================
+        # NOT FOUND
+        # ====================================================
+
+        if not expense:
+
+            await query.edit_message_text(
+                "❌ Transaksi tidak ditemukan."
+            )
+
+            return
+
+        description = (
+            expense.description
+        )
+
+        amount = (
+            expense.amount
+        )
+
+        # ====================================================
+        # DELETE
+        # ====================================================
+
+        db.delete(
+            expense
+        )
+
+        db.commit()
+
+        await query.edit_message_text(
+
+            "✅ *Transaksi berhasil dihapus!*\n\n"
+
+            f"🏪 {description}\n"
+
+            f"💰 "
+            f"{format_rupiah(amount)}",
+
+            parse_mode="Markdown",
+
+        )
+
+        # ====================================================
+        # SHOW UPDATED HISTORY
+        # ====================================================
+
+        expenses, has_next = (
+            get_expenses(
+                user_id,
+                page,
+            )
+        )
+
+        if expenses:
+
+            message = (
+                build_history_message(
+                    expenses,
+                    page,
+                )
+            )
+
+            markup = (
+                build_history_keyboard(
+                    expenses,
+                    page,
+                    has_next,
+                )
+            )
+
+            await query.message.reply_text(
+
+                message,
+
+                reply_markup=markup,
+
+                parse_mode="Markdown",
+
+            )
+
+        elif page > 0:
+
+            # Kalau halaman sekarang
+            # kosong setelah delete,
+            # tampilkan halaman sebelumnya.
+
+            await show_history(
+                update,
+                context,
+                page=page - 1,
+            )
+
+        else:
+
+            await query.message.reply_text(
+                "📋 *Riwayat Pengeluaran*\n\n"
+                "Belum ada transaksi.",
+                parse_mode="Markdown",
+            )
+
+    except Exception as error:
+
+        print(
+            "Delete expense error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        db.rollback()
+
+        await query.edit_message_text(
+
+            "❌ Terjadi kesalahan "
+            "saat menghapus transaksi."
+
+        )
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# CANCEL DELETE
+# ============================================================
+
+async def cancel_delete_expense(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    if not query:
+        return
+
+    await query.answer(
+        "Penghapusan dibatalkan."
+    )
+
+    try:
+
+        page = int(
+            query.data.replace(
+                "expense_delete_cancel_",
+                "",
+            )
+        )
+
+    except ValueError:
+
         page = 0
 
     await show_history(
@@ -380,12 +770,57 @@ async def history_page(
 
 
 # ============================================================
-# CALLBACK HANDLER
+# CALLBACK HANDLERS
 # ============================================================
 
 history_callback_handler = (
     CallbackQueryHandler(
+
         history_page,
-        pattern=r"^history_page_\d+$",
+
+        pattern=(
+            r"^history_page_\d+$"
+        ),
+
+    )
+)
+
+
+delete_expense_confirmation_handler = (
+    CallbackQueryHandler(
+
+        delete_expense_confirmation,
+
+        pattern=(
+            r"^expense_delete_\d+_\d+$"
+        ),
+
+    )
+)
+
+
+delete_expense_handler = (
+    CallbackQueryHandler(
+
+        delete_expense,
+
+        pattern=(
+            r"^expense_confirm_delete_"
+            r"\d+_\d+$"
+        ),
+
+    )
+)
+
+
+delete_expense_cancel_handler = (
+    CallbackQueryHandler(
+
+        cancel_delete_expense,
+
+        pattern=(
+            r"^expense_delete_cancel_\d+$"
+        ),
+
     )
 )
