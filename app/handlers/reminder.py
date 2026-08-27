@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import datetime, time
 
 from telegram import (
     InlineKeyboardButton,
@@ -11,6 +11,9 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from database.db import SessionLocal
+from database.models import Reminder
+
 
 # ============================================================
 # CONSTANT
@@ -20,57 +23,27 @@ REMINDER_JOB_NAME = "daily_expense_reminder"
 
 
 # ============================================================
-# REMINDER TIMES
+# AVAILABLE REMINDER TIMES
 # ============================================================
 
 REMINDER_TIMES = {
-    "07": (
-        7,
-        0,
-        "07:00",
-    ),
 
-    "08": (
-        8,
-        0,
-        "08:00",
-    ),
+    "07": (7, 0, "07:00"),
 
-    "09": (
-        9,
-        0,
-        "09:00",
-    ),
+    "08": (8, 0, "08:00"),
 
-    "12": (
-        12,
-        0,
-        "12:00",
-    ),
+    "09": (9, 0, "09:00"),
 
-    "18": (
-        18,
-        0,
-        "18:00",
-    ),
+    "12": (12, 0, "12:00"),
 
-    "19": (
-        19,
-        0,
-        "19:00",
-    ),
+    "18": (18, 0, "18:00"),
 
-    "20": (
-        20,
-        0,
-        "20:00",
-    ),
+    "19": (19, 0, "19:00"),
 
-    "21": (
-        21,
-        0,
-        "21:00",
-    ),
+    "20": (20, 0, "20:00"),
+
+    "21": (21, 0, "21:00"),
+
 }
 
 
@@ -79,19 +52,34 @@ REMINDER_TIMES = {
 # ============================================================
 
 REMINDER_MESSAGE = (
-    "🔔 *Pengingat Pengeluaran*\n\n"
-    "Sudah mencatat pengeluaran hari ini? 💰\n\n"
-    "Jangan lupa catat transaksi kamu "
-    "agar laporan dan statistik tetap akurat.\n\n"
-    "📝 Contoh:\n"
+
+    "🔔 *PENGINGAT PENGELUARAN*\n"
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    "👋 Hai! Sudah mencatat "
+    "pengeluaran hari ini?\n\n"
+
+    "💰 Jangan lupa mencatat setiap "
+    "transaksi agar laporan keuangan "
+    "kamu tetap akurat.\n\n"
+
+    "📝 *Catat manual*\n"
     "`Makan siang 25000`\n\n"
-    "📷 Atau kirim foto struk "
-    "untuk pencatatan otomatis."
+
+    "📷 *Atau kirim foto struk*\n"
+    "Bot akan membantu membaca "
+    "transaksi secara otomatis.\n\n"
+
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    "💡 *Tips:* Catat pengeluaran "
+    "segera setelah transaksi."
+
 )
 
 
 # ============================================================
-# REMINDER MENU
+# MAIN KEYBOARD
 # ============================================================
 
 def build_reminder_keyboard():
@@ -99,22 +87,26 @@ def build_reminder_keyboard():
     keyboard = [
 
         [
+
             InlineKeyboardButton(
                 "⏰ Atur Reminder",
                 callback_data="reminder_set",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
-                "📋 Status Reminder",
+                "📋 Lihat Status",
                 callback_data="reminder_status",
             ),
 
             InlineKeyboardButton(
-                "🔕 Matikan Reminder",
+                "🔕 Matikan",
                 callback_data="reminder_off",
             ),
+
         ],
 
     ]
@@ -125,7 +117,7 @@ def build_reminder_keyboard():
 
 
 # ============================================================
-# TIME MENU
+# TIME KEYBOARD
 # ============================================================
 
 def build_time_keyboard():
@@ -133,62 +125,548 @@ def build_time_keyboard():
     keyboard = [
 
         [
+
             InlineKeyboardButton(
-                "07:00",
+                "🌅 07:00",
                 callback_data="reminder_time_07",
             ),
 
             InlineKeyboardButton(
-                "08:00",
+                "☀️ 08:00",
                 callback_data="reminder_time_08",
             ),
 
             InlineKeyboardButton(
-                "09:00",
+                "☀️ 09:00",
                 callback_data="reminder_time_09",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
-                "12:00",
+                "🍽️ 12:00",
                 callback_data="reminder_time_12",
             ),
 
             InlineKeyboardButton(
-                "18:00",
+                "🌆 18:00",
                 callback_data="reminder_time_18",
             ),
 
             InlineKeyboardButton(
-                "19:00",
+                "🌆 19:00",
                 callback_data="reminder_time_19",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
-                "20:00",
+                "🌙 20:00",
                 callback_data="reminder_time_20",
             ),
 
             InlineKeyboardButton(
-                "21:00",
+                "🌙 21:00",
                 callback_data="reminder_time_21",
             ),
+
         ],
 
         [
+
             InlineKeyboardButton(
                 "⬅️ Kembali",
                 callback_data="reminder_back",
             ),
+
         ],
 
     ]
 
     return InlineKeyboardMarkup(
         keyboard
+    )
+
+
+# ============================================================
+# GET REMINDER
+# ============================================================
+
+def get_reminder(
+    user_id: int,
+):
+
+    db = SessionLocal()
+
+    try:
+
+        reminder = (
+
+            db.query(Reminder)
+
+            .filter(
+                Reminder.user_id == user_id
+            )
+
+            .first()
+
+        )
+
+        if reminder is None:
+
+            return None
+
+        return {
+
+            "id": reminder.id,
+
+            "user_id": reminder.user_id,
+
+            "enabled": reminder.enabled,
+
+            "hour": reminder.hour,
+
+            "minute": reminder.minute,
+
+        }
+
+    except Exception as error:
+
+        print(
+            "❌ Get reminder error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        return None
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# GET ACTIVE REMINDERS
+# ============================================================
+
+def get_active_reminders():
+
+    db = SessionLocal()
+
+    try:
+
+        reminders = (
+
+            db.query(Reminder)
+
+            .filter(
+                Reminder.enabled.is_(True)
+            )
+
+            .all()
+
+        )
+
+        result = []
+
+        for reminder in reminders:
+
+            result.append({
+
+                "user_id": reminder.user_id,
+
+                "hour": reminder.hour,
+
+                "minute": reminder.minute,
+
+            })
+
+        return result
+
+    except Exception as error:
+
+        print(
+            "❌ Get active reminders error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        return []
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# SAVE REMINDER
+# ============================================================
+
+def save_reminder(
+    user_id: int,
+    hour: int,
+    minute: int,
+):
+
+    db = SessionLocal()
+
+    try:
+
+        reminder = (
+
+            db.query(Reminder)
+
+            .filter(
+                Reminder.user_id == user_id
+            )
+
+            .first()
+
+        )
+
+        now = datetime.now()
+
+        # ====================================================
+        # CREATE
+        # ====================================================
+
+        if reminder is None:
+
+            reminder = Reminder(
+
+                user_id=user_id,
+
+                enabled=True,
+
+                hour=hour,
+
+                minute=minute,
+
+                created_at=now,
+
+                updated_at=now,
+
+            )
+
+            db.add(
+                reminder
+            )
+
+        # ====================================================
+        # UPDATE
+        # ====================================================
+
+        else:
+
+            reminder.enabled = True
+
+            reminder.hour = hour
+
+            reminder.minute = minute
+
+            reminder.updated_at = now
+
+        db.commit()
+
+        db.refresh(
+            reminder
+        )
+
+        return reminder
+
+    except Exception:
+
+        db.rollback()
+
+        raise
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# DISABLE REMINDER
+# ============================================================
+
+def disable_reminder(
+    user_id: int,
+):
+
+    db = SessionLocal()
+
+    try:
+
+        reminder = (
+
+            db.query(Reminder)
+
+            .filter(
+                Reminder.user_id == user_id
+            )
+
+            .first()
+
+        )
+
+        if reminder is not None:
+
+            reminder.enabled = False
+
+            reminder.updated_at = datetime.now()
+
+            db.commit()
+
+        return reminder
+
+    except Exception:
+
+        db.rollback()
+
+        raise
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# REMOVE OLD JOB
+# ============================================================
+
+def remove_reminder_job(
+    user_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    if context.job_queue is None:
+
+        return
+
+    job_name = (
+
+        f"{REMINDER_JOB_NAME}_"
+        f"{user_id}"
+
+    )
+
+    jobs = (
+
+        context.job_queue
+
+        .get_jobs_by_name(
+            job_name
+        )
+
+    )
+
+    for job in jobs:
+
+        job.schedule_removal()
+
+
+# ============================================================
+# CREATE DAILY JOB
+# ============================================================
+
+def create_reminder_job(
+    user_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    hour: int,
+    minute: int,
+):
+
+    if context.job_queue is None:
+
+        return False
+
+    # ========================================================
+    # REMOVE OLD JOB
+    # ========================================================
+
+    remove_reminder_job(
+
+        user_id,
+
+        context,
+
+    )
+
+    # ========================================================
+    # JOB NAME
+    # ========================================================
+
+    job_name = (
+
+        f"{REMINDER_JOB_NAME}_"
+        f"{user_id}"
+
+    )
+
+    # ========================================================
+    # CREATE JOB
+    # ========================================================
+
+    context.job_queue.run_daily(
+
+        callback=send_reminder,
+
+        time=time(
+
+            hour=hour,
+
+            minute=minute,
+
+        ),
+
+        chat_id=user_id,
+
+        name=job_name,
+
+        data={
+
+            "user_id": user_id,
+
+        },
+
+    )
+
+    return True
+
+
+# ============================================================
+# SEND REMINDER
+# ============================================================
+
+async def send_reminder(
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    job = context.job
+
+    if job is None:
+
+        return
+
+    user_id = None
+
+    if job.data:
+
+        user_id = job.data.get(
+            "user_id"
+        )
+
+    if not user_id:
+
+        user_id = job.chat_id
+
+    if not user_id:
+
+        return
+
+    # ========================================================
+    # CHECK DATABASE
+    # ========================================================
+
+    reminder = get_reminder(
+        user_id
+    )
+
+    if reminder is None:
+
+        return
+
+    if not reminder["enabled"]:
+
+        return
+
+    # ========================================================
+    # SEND
+    # ========================================================
+
+    try:
+
+        await context.bot.send_message(
+
+            chat_id=user_id,
+
+            text=REMINDER_MESSAGE,
+
+            parse_mode="Markdown",
+
+        )
+
+        print(
+
+            f"🔔 Reminder dikirim "
+            f"ke user {user_id}"
+
+        )
+
+    except Exception as error:
+
+        print(
+            "❌ Reminder send error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+
+# ============================================================
+# BUILD CURRENT STATUS
+# ============================================================
+
+def build_status_text(
+    reminder,
+) -> str:
+
+    if (
+
+        reminder is not None
+
+        and reminder["enabled"]
+
+    ):
+
+        time_text = (
+
+            f"{reminder['hour']:02d}:"
+            f"{reminder['minute']:02d}"
+
+        )
+
+        return (
+
+            "🟢 *AKTIF*\n\n"
+
+            f"⏰ Waktu: *{time_text}*\n"
+
+            "📅 Frekuensi: *Setiap hari*\n\n"
+
+            "🔔 Reminder akan dikirim "
+            "otomatis sesuai jadwal."
+
+        )
+
+    return (
+
+        "🔴 *TIDAK AKTIF*\n\n"
+
+        "Belum ada reminder aktif.\n\n"
+
+        "Tekan ⏰ *Atur Reminder* "
+        "untuk mengaktifkannya."
+
     )
 
 
@@ -205,38 +683,30 @@ async def reminder_command(
 
         return
 
-    enabled = context.user_data.get(
-        "reminder_enabled",
-        False,
+    user = update.effective_user
+
+    if user is None:
+
+        return
+
+    reminder = get_reminder(
+        user.id
     )
-
-    reminder_time = context.user_data.get(
-        "reminder_time",
-    )
-
-    if enabled and reminder_time:
-
-        status_text = (
-            f"🟢 Aktif\n"
-            f"⏰ Setiap hari pukul "
-            f"*{reminder_time}*"
-        )
-
-    else:
-
-        status_text = (
-            "🔴 Tidak aktif"
-        )
 
     message = (
 
-        "🔔 *DAILY REMINDER*\n\n"
+        "🔔 *DAILY REMINDER*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        "Reminder akan mengingatkan kamu "
-        "untuk mencatat pengeluaran setiap hari.\n\n"
+        "Atur pengingat agar kamu "
+        "tidak lupa mencatat "
+        "pengeluaran setiap hari.\n\n"
 
-        f"Status saat ini:\n"
-        f"{status_text}\n\n"
+        "📋 *STATUS SAAT INI*\n\n"
+
+        f"{build_status_text(reminder)}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         "Pilih menu di bawah:"
 
@@ -266,7 +736,7 @@ async def reminder_set_callback(
 
     query = update.callback_query
 
-    if not query:
+    if query is None:
 
         return
 
@@ -274,12 +744,20 @@ async def reminder_set_callback(
 
     await query.edit_message_text(
 
-        "⏰ *Atur Daily Reminder*\n\n"
+        "⏰ *ATUR DAILY REMINDER*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        "Pilih waktu reminder yang kamu inginkan.\n\n"
+        "Pilih waktu yang paling nyaman "
+        "untuk menerima pengingat.\n\n"
 
-        "Reminder akan dikirim setiap hari "
-        "pada waktu yang dipilih.",
+        "🌅 Pagi\n"
+        "☀️ Siang\n"
+        "🌆 Sore\n"
+        "🌙 Malam\n\n"
+
+        "Reminder akan dikirim "
+        "*setiap hari* pada waktu "
+        "yang kamu pilih.",
 
         reply_markup=(
             build_time_keyboard()
@@ -288,135 +766,6 @@ async def reminder_set_callback(
         parse_mode="Markdown",
 
     )
-
-
-# ============================================================
-# CREATE JOB
-# ============================================================
-
-def create_reminder_job(
-    user_id: int,
-    context: ContextTypes.DEFAULT_TYPE,
-    hour: int,
-    minute: int,
-):
-
-    # ========================================================
-    # REMOVE EXISTING JOB
-    # ========================================================
-
-    remove_reminder_job(
-        user_id,
-        context,
-    )
-
-    # ========================================================
-    # CREATE DAILY JOB
-    # ========================================================
-
-    job_name = (
-        f"{REMINDER_JOB_NAME}_{user_id}"
-    )
-
-    context.job_queue.run_daily(
-
-        callback=send_reminder,
-
-        time=time(
-            hour=hour,
-            minute=minute,
-        ),
-
-        chat_id=user_id,
-
-        name=job_name,
-
-        data={
-            "user_id": user_id,
-        },
-
-    )
-
-
-# ============================================================
-# REMOVE JOB
-# ============================================================
-
-def remove_reminder_job(
-    user_id: int,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-
-    if context.job_queue is None:
-
-        return
-
-    job_name = (
-        f"{REMINDER_JOB_NAME}_{user_id}"
-    )
-
-    jobs = (
-        context.job_queue.get_jobs_by_name(
-            job_name
-        )
-    )
-
-    for job in jobs:
-
-        job.schedule_removal()
-
-
-# ============================================================
-# SEND REMINDER
-# ============================================================
-
-async def send_reminder(
-    context: ContextTypes.DEFAULT_TYPE,
-):
-
-    job = context.job
-
-    if not job:
-
-        return
-
-    user_id = None
-
-    if job.data:
-
-        user_id = job.data.get(
-            "user_id"
-        )
-
-    if not user_id:
-
-        user_id = job.chat_id
-
-    if not user_id:
-
-        return
-
-    try:
-
-        await context.bot.send_message(
-
-            chat_id=user_id,
-
-            text=REMINDER_MESSAGE,
-
-            parse_mode="Markdown",
-
-        )
-
-    except Exception as error:
-
-        print(
-            "Reminder send error:"
-        )
-
-        print(
-            repr(error)
-        )
 
 
 # ============================================================
@@ -430,7 +779,7 @@ async def reminder_time_callback(
 
     query = update.callback_query
 
-    if not query:
+    if query is None:
 
         return
 
@@ -438,15 +787,11 @@ async def reminder_time_callback(
 
     user = update.effective_user
 
-    if not user:
+    if user is None:
 
         return
 
     user_id = user.id
-
-    # ========================================================
-    # GET SELECTED TIME
-    # ========================================================
 
     prefix = "reminder_time_"
 
@@ -466,11 +811,16 @@ async def reminder_time_callback(
         )
     )
 
-    if not selected_time:
+    if selected_time is None:
 
         await query.edit_message_text(
 
-            "❌ Waktu reminder tidak valid."
+            "❌ *WAKTU TIDAK VALID*\n\n"
+
+            "Silakan pilih waktu "
+            "yang tersedia.",
+
+            parse_mode="Markdown",
 
         )
 
@@ -483,17 +833,19 @@ async def reminder_time_callback(
     time_text = selected_time[2]
 
     # ========================================================
-    # CHECK JOBQUEUE
+    # CHECK JOB QUEUE
     # ========================================================
 
     if context.job_queue is None:
 
         await query.edit_message_text(
 
-            "❌ Daily Reminder belum tersedia.\n\n"
+            "❌ *REMINDER TIDAK TERSEDIA*\n\n"
 
-            "Pastikan dependency berikut sudah "
-            "terinstall:\n\n"
+            "Job Queue Telegram belum "
+            "tersedia pada environment ini.\n\n"
+
+            "Install dependency:\n\n"
 
             "`python -m pip install "
             "\"python-telegram-bot[job-queue]\"`",
@@ -505,55 +857,97 @@ async def reminder_time_callback(
         return
 
     # ========================================================
+    # SAVE DATABASE
+    # ========================================================
+
+    try:
+
+        save_reminder(
+
+            user_id=user_id,
+
+            hour=hour,
+
+            minute=minute,
+
+        )
+
+    except Exception as error:
+
+        print(
+            "❌ Reminder database error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        await query.edit_message_text(
+
+            "❌ *GAGAL MENYIMPAN*\n\n"
+
+            "Pengaturan reminder "
+            "tidak dapat disimpan.\n\n"
+
+            "Silakan coba lagi.",
+
+            parse_mode="Markdown",
+
+        )
+
+        return
+
+    # ========================================================
     # CREATE JOB
     # ========================================================
 
-    create_reminder_job(
+    success = create_reminder_job(
 
-        user_id,
+        user_id=user_id,
 
-        context,
+        context=context,
 
-        hour,
+        hour=hour,
 
-        minute,
+        minute=minute,
 
     )
 
-    # ========================================================
-    # SAVE USER STATE
-    # ========================================================
+    if not success:
 
-    context.user_data[
-        "reminder_enabled"
-    ] = True
+        await query.edit_message_text(
 
-    context.user_data[
-        "reminder_time"
-    ] = time_text
+            "❌ *GAGAL MEMBUAT JADWAL*\n\n"
 
-    context.user_data[
-        "reminder_hour"
-    ] = hour
+            "Reminder belum dapat "
+            "diaktifkan.",
 
-    context.user_data[
-        "reminder_minute"
-    ] = minute
+            parse_mode="Markdown",
+
+        )
+
+        return
 
     # ========================================================
-    # RESPONSE
+    # SUCCESS
     # ========================================================
 
     await query.edit_message_text(
 
-        "✅ *Reminder berhasil diatur!*\n\n"
+        "✅ *REMINDER BERHASIL DIATUR*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"🔔 Status: *Aktif*\n"
+        "🟢 Status: *Aktif*\n"
+
         f"⏰ Waktu: *{time_text}*\n"
-        f"📅 Frekuensi: Setiap hari\n\n"
 
-        "Bot akan mengingatkan kamu "
-        "setiap hari pada waktu tersebut.",
+        "📅 Frekuensi: *Setiap hari*\n\n"
+
+        "💾 Pengaturan sudah tersimpan.\n\n"
+
+        "🔄 Jika bot di-restart, "
+        "reminder akan dipulihkan "
+        "secara otomatis.",
 
         reply_markup=(
             build_reminder_keyboard()
@@ -575,48 +969,35 @@ async def reminder_status_callback(
 
     query = update.callback_query
 
-    if not query:
+    if query is None:
 
         return
 
     await query.answer()
 
-    enabled = context.user_data.get(
-        "reminder_enabled",
-        False,
+    user = update.effective_user
+
+    if user is None:
+
+        return
+
+    reminder = get_reminder(
+        user.id
     )
 
-    reminder_time = context.user_data.get(
-        "reminder_time"
+    message = (
+
+        "📋 *STATUS DAILY REMINDER*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        f"{build_status_text(reminder)}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "Gunakan menu di bawah "
+        "untuk mengubah pengaturan."
+
     )
-
-    if enabled and reminder_time:
-
-        message = (
-
-            "📋 *STATUS DAILY REMINDER*\n\n"
-
-            "🟢 Status: *Aktif*\n"
-
-            f"⏰ Waktu: *{reminder_time}*\n"
-
-            "📅 Frekuensi: Setiap hari"
-
-        )
-
-    else:
-
-        message = (
-
-            "📋 *STATUS DAILY REMINDER*\n\n"
-
-            "🔴 Status: *Tidak aktif*\n\n"
-
-            "Gunakan tombol "
-            "⏰ *Atur Reminder* "
-            "untuk mengaktifkan."
-
-        )
 
     await query.edit_message_text(
 
@@ -632,7 +1013,7 @@ async def reminder_status_callback(
 
 
 # ============================================================
-# TURN OFF
+# DISABLE
 # ============================================================
 
 async def reminder_off_callback(
@@ -642,7 +1023,7 @@ async def reminder_off_callback(
 
     query = update.callback_query
 
-    if not query:
+    if query is None:
 
         return
 
@@ -650,55 +1031,65 @@ async def reminder_off_callback(
 
     user = update.effective_user
 
-    if not user:
+    if user is None:
 
         return
 
     user_id = user.id
+
+    try:
+
+        disable_reminder(
+            user_id
+        )
+
+    except Exception as error:
+
+        print(
+            "❌ Reminder disable error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        await query.edit_message_text(
+
+            "❌ *GAGAL MEMATIKAN REMINDER*\n\n"
+
+            "Terjadi kesalahan saat "
+            "mengubah status reminder.",
+
+            parse_mode="Markdown",
+
+        )
+
+        return
 
     # ========================================================
     # REMOVE JOB
     # ========================================================
 
     remove_reminder_job(
+
         user_id,
+
         context,
+
     )
-
-    # ========================================================
-    # CLEAR STATE
-    # ========================================================
-
-    context.user_data.pop(
-        "reminder_enabled",
-        None,
-    )
-
-    context.user_data.pop(
-        "reminder_time",
-        None,
-    )
-
-    context.user_data.pop(
-        "reminder_hour",
-        None,
-    )
-
-    context.user_data.pop(
-        "reminder_minute",
-        None,
-    )
-
-    # ========================================================
-    # RESPONSE
-    # ========================================================
 
     await query.edit_message_text(
 
-        "🔕 *Reminder dimatikan.*\n\n"
+        "🔕 *REMINDER DIMATIKAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        "Bot tidak akan lagi mengirim "
-        "pengingat pengeluaran harian.",
+        "Reminder harian kamu "
+        "sudah dinonaktifkan.\n\n"
+
+        "💾 Pengaturan tetap tersimpan "
+        "di database sehingga kamu "
+        "bisa mengaktifkannya kembali "
+        "kapan saja.",
 
         reply_markup=(
             build_reminder_keyboard()
@@ -720,46 +1111,44 @@ async def reminder_back_callback(
 
     query = update.callback_query
 
-    if not query:
+    if query is None:
 
         return
 
     await query.answer()
 
-    enabled = context.user_data.get(
-        "reminder_enabled",
-        False,
+    user = update.effective_user
+
+    if user is None:
+
+        return
+
+    reminder = get_reminder(
+        user.id
     )
 
-    reminder_time = context.user_data.get(
-        "reminder_time"
+    message = (
+
+        "🔔 *DAILY REMINDER*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "Atur pengingat agar kamu "
+        "tidak lupa mencatat "
+        "pengeluaran setiap hari.\n\n"
+
+        "📋 *STATUS SAAT INI*\n\n"
+
+        f"{build_status_text(reminder)}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "Pilih menu di bawah:"
+
     )
-
-    if enabled and reminder_time:
-
-        status_text = (
-            f"🟢 Aktif\n"
-            f"⏰ Setiap hari pukul "
-            f"*{reminder_time}*"
-        )
-
-    else:
-
-        status_text = (
-            "🔴 Tidak aktif"
-        )
 
     await query.edit_message_text(
 
-        "🔔 *DAILY REMINDER*\n\n"
-
-        "Reminder akan mengingatkan kamu "
-        "untuk mencatat pengeluaran setiap hari.\n\n"
-
-        f"Status saat ini:\n"
-        f"{status_text}\n\n"
-
-        "Pilih menu di bawah:",
+        message,
 
         reply_markup=(
             build_reminder_keyboard()
@@ -771,7 +1160,116 @@ async def reminder_back_callback(
 
 
 # ============================================================
-# CALLBACK HANDLER
+# RESTORE REMINDERS AFTER RESTART
+# ============================================================
+
+def restore_reminders(
+    application,
+):
+
+    job_queue = application.job_queue
+
+    if job_queue is None:
+
+        print(
+            "⚠️ JobQueue tidak tersedia."
+        )
+
+        return
+
+    # ========================================================
+    # GET ACTIVE REMINDERS
+    # ========================================================
+
+    reminders = (
+        get_active_reminders()
+    )
+
+    restored = 0
+
+    # ========================================================
+    # RESTORE EACH USER
+    # ========================================================
+
+    for reminder in reminders:
+
+        user_id = (
+            reminder["user_id"]
+        )
+
+        hour = (
+            reminder["hour"]
+        )
+
+        minute = (
+            reminder["minute"]
+        )
+
+        job_name = (
+
+            f"{REMINDER_JOB_NAME}_"
+            f"{user_id}"
+
+        )
+
+        # ====================================================
+        # CHECK DUPLICATE
+        # ====================================================
+
+        existing_jobs = (
+
+            job_queue
+
+            .get_jobs_by_name(
+                job_name
+            )
+
+        )
+
+        if existing_jobs:
+
+            continue
+
+        # ====================================================
+        # CREATE JOB
+        # ====================================================
+
+        job_queue.run_daily(
+
+            callback=send_reminder,
+
+            time=time(
+
+                hour=hour,
+
+                minute=minute,
+
+            ),
+
+            chat_id=user_id,
+
+            name=job_name,
+
+            data={
+
+                "user_id": user_id,
+
+            },
+
+        )
+
+        restored += 1
+
+    print(
+
+        "🔄 Persistent reminder dipulihkan: "
+        f"{restored} reminder."
+
+    )
+
+
+# ============================================================
+# CALLBACK HANDLERS
 # ============================================================
 
 reminder_handler = CallbackQueryHandler(

@@ -2,8 +2,16 @@
 
 from sqlalchemy import func, select
 
-from telegram import Update
-from telegram.ext import ContextTypes
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
+
+from telegram.ext import (
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 from database.db import SessionLocal
 from database.models import Expense
@@ -27,6 +35,16 @@ MONTH_NAMES = [
     "November",
     "Desember",
 ]
+
+
+CATEGORY_ICONS = {
+    "Makanan": "🍜",
+    "Transportasi": "🚗",
+    "Belanja": "🛒",
+    "Kesehatan": "💊",
+    "Hiburan": "🎮",
+    "Lainnya": "📦",
+}
 
 
 # ============================================================
@@ -66,16 +84,7 @@ def category_icon(
     category: str,
 ) -> str:
 
-    icons = {
-        "Makanan": "🍜",
-        "Transportasi": "🚗",
-        "Belanja": "🛒",
-        "Kesehatan": "💊",
-        "Hiburan": "🎮",
-        "Lainnya": "📦",
-    }
-
-    return icons.get(
+    return CATEGORY_ICONS.get(
         category,
         "📦",
     )
@@ -90,7 +99,9 @@ def get_month_name(
 ) -> str:
 
     if 1 <= month <= 12:
-        return MONTH_NAMES[month - 1]
+        return MONTH_NAMES[
+            month - 1
+        ]
 
     return str(month)
 
@@ -133,24 +144,35 @@ def get_month_range(
 
 
 # ============================================================
-# PREVIOUS MONTH
+# PROGRESS BAR
 # ============================================================
 
-def get_previous_month(
-    year: int,
-    month: int,
-):
+def build_progress_bar(
+    percentage: float,
+    length: int = 10,
+) -> str:
 
-    if month == 1:
+    percentage = max(
+        0,
+        min(
+            percentage,
+            100,
+        ),
+    )
 
-        return (
-            year - 1,
-            12,
-        )
+    filled = int(
+        percentage
+        / 100
+        * length
+    )
+
+    empty = (
+        length - filled
+    )
 
     return (
-        year,
-        month - 1,
+        "█" * filled
+        + "░" * empty
     )
 
 
@@ -192,6 +214,39 @@ def get_daily_total(
         return int(
             result or 0
         )
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# GET DAILY EXPENSES
+# ============================================================
+
+def get_daily_expenses(
+    user_id: int,
+    target_date: date,
+):
+
+    db = SessionLocal()
+
+    try:
+
+        statement = (
+            select(Expense)
+            .where(
+                Expense.user_id == user_id,
+                Expense.expense_date == target_date,
+            )
+            .order_by(
+                Expense.created_at.desc()
+            )
+        )
+
+        return db.scalars(
+            statement
+        ).all()
 
     finally:
 
@@ -247,6 +302,53 @@ def get_monthly_total(
         return int(
             result or 0
         )
+
+    finally:
+
+        db.close()
+
+
+# ============================================================
+# GET MONTHLY EXPENSES
+# ============================================================
+
+def get_monthly_expenses(
+    user_id: int,
+    year: int,
+    month: int,
+):
+
+    start_date, end_date = (
+        get_month_range(
+            year,
+            month,
+        )
+    )
+
+    db = SessionLocal()
+
+    try:
+
+        statement = (
+            select(Expense)
+            .where(
+                Expense.user_id == user_id,
+
+                Expense.expense_date
+                >= start_date,
+
+                Expense.expense_date
+                < end_date,
+            )
+            .order_by(
+                Expense.expense_date.desc(),
+                Expense.created_at.desc(),
+            )
+        )
+
+        return db.scalars(
+            statement
+        ).all()
 
     finally:
 
@@ -325,48 +427,6 @@ def get_category_report(
 
 
 # ============================================================
-# CALCULATE MONTH COMPARISON
-# ============================================================
-
-def calculate_month_comparison(
-    current_total: int,
-    previous_total: int,
-):
-
-    difference = (
-        current_total
-        - previous_total
-    )
-
-    # --------------------------------------------------------
-    # Jika bulan sebelumnya = 0
-    # --------------------------------------------------------
-
-    if previous_total == 0:
-
-        if current_total == 0:
-
-            percentage = 0.0
-
-        else:
-
-            percentage = None
-
-    else:
-
-        percentage = (
-            difference
-            / previous_total
-            * 100
-        )
-
-    return (
-        difference,
-        percentage,
-    )
-
-
-# ============================================================
 # DAILY REPORT
 # ============================================================
 
@@ -376,6 +436,7 @@ async def daily_report(
 ):
 
     if not update.effective_user:
+
         return
 
     user_id = (
@@ -389,18 +450,99 @@ async def daily_report(
         today,
     )
 
-    message = (
-
-        "📅 *Laporan Hari Ini*\n\n"
-
-        f"📆 "
-        f"{today.strftime('%d-%m-%Y')}\n\n"
-
-        f"💰 *Total Pengeluaran:*\n"
-
-        f"{format_rupiah(total)}"
-
+    expenses = get_daily_expenses(
+        user_id,
+        today,
     )
+
+    # ========================================================
+    # NO DATA
+    # ========================================================
+
+    if not expenses:
+
+        message = (
+
+            "📅 *LAPORAN HARI INI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            f"📆 "
+            f"{today.strftime('%d-%m-%Y')}\n\n"
+
+            "📭 *Belum ada pengeluaran*\n\n"
+
+            "Belum ada transaksi yang "
+            "tercatat hari ini.\n\n"
+
+            "💡 Kamu bisa mencatat "
+            "pengeluaran dengan mengirim:\n\n"
+
+            "`Makan siang 25000`"
+
+        )
+
+    else:
+
+        # ====================================================
+        # HEADER
+        # ====================================================
+
+        message = (
+
+            "📅 *LAPORAN HARI INI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            f"📆 *{today.strftime('%d-%m-%Y')}*\n\n"
+
+            "💸 *Total Pengeluaran*\n"
+            f"*{format_rupiah(total)}*\n\n"
+
+            f"🧾 *{len(expenses)} transaksi*\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "📝 *DAFTAR PENGELUARAN*\n\n"
+
+        )
+
+        # ====================================================
+        # EXPENSE LIST
+        # ====================================================
+
+        for index, expense in enumerate(
+            expenses,
+            start=1,
+        ):
+
+            category = (
+                expense.category
+                or "Lainnya"
+            )
+
+            icon = category_icon(
+                category
+            )
+
+            description = (
+                expense.description
+                or "Transaksi"
+            )
+
+            message += (
+
+                f"*{index}. {icon} "
+                f"{description}*\n"
+
+                f"   💵 "
+                f"{format_rupiah(expense.amount)}\n"
+
+                f"   🏷️ {category}\n\n"
+
+            )
+
+        message += (
+            "━━━━━━━━━━━━━━━━━━━━"
+        )
 
     if update.message:
 
@@ -423,6 +565,7 @@ async def monthly_report(
 ):
 
     if not update.effective_user:
+
         return
 
     user_id = (
@@ -441,22 +584,140 @@ async def monthly_report(
 
     )
 
+    expenses = get_monthly_expenses(
+
+        user_id,
+
+        today.year,
+
+        today.month,
+
+    )
+
     month_name = get_month_name(
         today.month
     )
 
-    message = (
+    # ========================================================
+    # NO DATA
+    # ========================================================
 
-        "📆 *Laporan Bulanan*\n\n"
+    if not expenses:
 
-        f"🗓️ {month_name} "
-        f"{today.year}\n\n"
+        message = (
 
-        f"💰 *Total Pengeluaran:*\n"
+            "📆 *LAPORAN BULANAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"{format_rupiah(total)}"
+            f"🗓️ *{month_name} "
+            f"{today.year}*\n\n"
 
-    )
+            "📭 *Belum ada pengeluaran*\n\n"
+
+            "Belum ada transaksi yang "
+            "tercatat pada bulan ini.\n\n"
+
+            "💡 Mulai catat pengeluaran "
+            "untuk melihat laporan "
+            "bulanan kamu."
+
+        )
+
+    else:
+
+        # ====================================================
+        # HEADER
+        # ====================================================
+
+        message = (
+
+            "📆 *LAPORAN BULANAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            f"🗓️ *{month_name} "
+            f"{today.year}*\n\n"
+
+            "💸 *Total Pengeluaran*\n"
+            f"*{format_rupiah(total)}*\n\n"
+
+            f"🧾 *{len(expenses)} transaksi*\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "📊 *RINGKASAN KATEGORI*\n\n"
+
+        )
+
+        # ====================================================
+        # CATEGORY SUMMARY
+        # ====================================================
+
+        results = get_category_report(
+
+            user_id,
+
+            today.year,
+
+            today.month,
+
+        )
+
+        for row in results:
+
+            category = (
+                row.category
+                or "Lainnya"
+            )
+
+            category_total = int(
+                row.total or 0
+            )
+
+            if total > 0:
+
+                percentage = (
+                    category_total
+                    / total
+                    * 100
+                )
+
+            else:
+
+                percentage = 0
+
+            icon = category_icon(
+                category
+            )
+
+            progress = (
+                build_progress_bar(
+                    percentage
+                )
+            )
+
+            message += (
+
+                f"{icon} *{category}*\n"
+
+                f"   💵 "
+                f"{format_rupiah(category_total)}\n"
+
+                f"   `{progress}` "
+                f"{format_percentage(percentage)}\n\n"
+
+            )
+
+        # ====================================================
+        # FOOTER
+        # ====================================================
+
+        message += (
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "💡 Gunakan `/statistik` "
+            "untuk melihat analisis "
+            "pengeluaran lebih lengkap."
+        )
 
     if update.message:
 
@@ -494,6 +755,7 @@ async def expense_summary(
 ):
 
     if not update.effective_user:
+
         return
 
     user_id = (
@@ -505,28 +767,9 @@ async def expense_summary(
     current_year = today.year
     current_month = today.month
 
-    # ========================================================
-    # CURRENT MONTH
-    # ========================================================
-
     results = get_category_report(
 
         user_id,
-
-        current_year,
-
-        current_month,
-
-    )
-
-    # ========================================================
-    # PREVIOUS MONTH
-    # ========================================================
-
-    (
-        previous_year,
-        previous_month,
-    ) = get_previous_month(
 
         current_year,
 
@@ -544,58 +787,30 @@ async def expense_summary(
 
     )
 
-    previous_total = get_monthly_total(
-
-        user_id,
-
-        previous_year,
-
-        previous_month,
-
-    )
-
     # ========================================================
-    # NO CURRENT DATA
+    # NO DATA
     # ========================================================
 
     if not results:
 
         message = (
 
-            "📊 *Rekap Pengeluaran*\n\n"
+            "📊 *REKAP PENGELUARAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🗓️ "
+            f"🗓️ *"
             f"{get_month_name(current_month)} "
-            f"{current_year}\n\n"
+            f"{current_year}*\n\n"
 
-            "Belum ada pengeluaran "
-            "untuk bulan ini.\n\n"
+            "📭 *Belum ada pengeluaran*\n\n"
+
+            "Belum ada transaksi yang "
+            "tercatat untuk bulan ini.\n\n"
+
+            "💡 Mulai catat pengeluaran "
+            "untuk melihat rekap."
 
         )
-
-        # ----------------------------------------------------
-        # Still show comparison
-        # ----------------------------------------------------
-
-        if previous_total > 0:
-
-            message += (
-
-                "📈 *Perbandingan Bulan*\n\n"
-
-                f"{get_month_name(previous_month)} "
-                f"{previous_year}: "
-                f"{format_rupiah(previous_total)}\n"
-
-                f"{get_month_name(current_month)} "
-                f"{current_year}: "
-                f"{format_rupiah(current_total)}\n\n"
-
-                "🔻 Pengeluaran bulan ini "
-                "lebih rendah karena belum "
-                "ada transaksi."
-
-            )
 
         if update.message:
 
@@ -615,14 +830,21 @@ async def expense_summary(
 
     message = (
 
-        "📊 *Rekap Pengeluaran*\n\n"
+        "📊 *REKAP PENGELUARAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"🗓️ "
+        f"🗓️ *"
         f"{get_month_name(current_month)} "
-        f"{current_year}\n\n"
+        f"{current_year}*\n\n"
 
-        f"💰 *Total: "
-        f"{format_rupiah(current_total)}*\n\n"
+        "💸 *TOTAL PENGELUARAN*\n"
+        f"*{format_rupiah(current_total)}*\n\n"
+
+        f"🏷️ *{len(results)} kategori*\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "🏆 *RINGKASAN KATEGORI*\n\n"
 
     )
 
@@ -659,13 +881,21 @@ async def expense_summary(
             category
         )
 
+        progress = (
+            build_progress_bar(
+                percentage
+            )
+        )
+
         message += (
 
             f"{icon} *{category}*\n"
 
-            f"   "
-            f"{format_rupiah(category_total)} "
-            f"({format_percentage(percentage)})\n\n"
+            f"💵 "
+            f"{format_rupiah(category_total)}\n"
+
+            f"`{progress}` "
+            f"*{format_percentage(percentage)}*\n\n"
 
         )
 
@@ -684,123 +914,44 @@ async def expense_summary(
         largest.total or 0
     )
 
+    largest_percentage = (
+
+        largest_total
+        / current_total
+        * 100
+
+        if current_total > 0
+        else 0
+
+    )
+
     largest_icon = category_icon(
         largest_category
     )
 
     message += (
 
-        "🏆 *Pengeluaran Terbesar:*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "🏆 *PENGELUARAN TERBESAR*\n\n"
 
         f"{largest_icon} "
-        f"{largest_category} — "
-        f"{format_rupiah(largest_total)}\n\n"
+        f"*{largest_category}*\n"
+
+        f"💵 "
+        f"{format_rupiah(largest_total)}\n"
+
+        f"📊 "
+        f"{format_percentage(largest_percentage)} "
+        f"dari total pengeluaran\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "💡 Gunakan `/statistik` "
+        "untuk melihat analisis "
+        "pengeluaran lebih detail."
 
     )
-
-    # ========================================================
-    # MONTH COMPARISON
-    # ========================================================
-
-    (
-        difference,
-        percentage,
-    ) = calculate_month_comparison(
-
-        current_total,
-
-        previous_total,
-
-    )
-
-    message += (
-        "📈 *Perbandingan Bulan*\n\n"
-    )
-
-    message += (
-
-        f"{get_month_name(previous_month)} "
-        f"{previous_year}: "
-        f"{format_rupiah(previous_total)}\n"
-
-        f"{get_month_name(current_month)} "
-        f"{current_year}: "
-        f"{format_rupiah(current_total)}\n\n"
-
-    )
-
-    # ========================================================
-    # COMPARISON RESULT
-    # ========================================================
-
-    if previous_total == 0:
-
-        if current_total > 0:
-
-            message += (
-
-                "🆕 Belum ada data "
-                "pengeluaran bulan sebelumnya."
-
-            )
-
-        else:
-
-            message += (
-                "➡️ Tidak ada perubahan."
-            )
-
-    elif difference > 0:
-
-        message += (
-
-            f"🔺 *Naik "
-            f"{format_rupiah(difference)}* "
-
-        )
-
-        if percentage is not None:
-
-            message += (
-
-                f"("
-                f"+{format_percentage(percentage)}"
-                f")"
-
-            )
-
-    elif difference < 0:
-
-        decrease = abs(
-            difference
-        )
-
-        decrease_percentage = (
-            abs(percentage)
-            if percentage is not None
-            else 0
-        )
-
-        message += (
-
-            f"🔻 *Turun "
-            f"{format_rupiah(decrease)}* "
-
-            f"("
-            f"-{format_percentage(decrease_percentage)}"
-            f")"
-
-        )
-
-    else:
-
-        message += (
-            "➡️ *Sama dengan bulan sebelumnya.*"
-        )
-
-    # ========================================================
-    # SEND
-    # ========================================================
 
     if update.message:
 
@@ -823,6 +974,7 @@ async def date_report(
 ):
 
     if not update.effective_user:
+
         return
 
     user_id = (
@@ -880,10 +1032,13 @@ async def date_report(
 
                 await update.message.reply_text(
 
-                    "❌ Format tanggal tidak valid.\n\n"
+                    "❌ *Format tanggal tidak valid*\n\n"
 
-                    "Contoh:\n"
-                    "`/tanggal 27-08-2026`",
+                    "Gunakan salah satu format:\n\n"
+
+                    "`/tanggal 27-08-2026`\n"
+                    "`/tanggal 27/08/2026`\n"
+                    "`/tanggal 2026-08-27`",
 
                     parse_mode="Markdown",
 
@@ -899,39 +1054,13 @@ async def date_report(
     # GET EXPENSES
     # ========================================================
 
-    db = SessionLocal()
+    expenses = get_daily_expenses(
 
-    try:
+        user_id,
 
-        statement = (
+        target_date,
 
-            select(Expense)
-
-            .where(
-
-                Expense.user_id
-                == user_id,
-
-                Expense.expense_date
-                == target_date,
-
-            )
-
-            .order_by(
-
-                Expense.created_at.desc()
-
-            )
-
-        )
-
-        expenses = db.scalars(
-            statement
-        ).all()
-
-    finally:
-
-        db.close()
+    )
 
     # ========================================================
     # NO DATA
@@ -941,12 +1070,17 @@ async def date_report(
 
         message = (
 
-            "📅 *Laporan Tanggal*\n\n"
+            "📅 *LAPORAN TANGGAL*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"📆 "
-            f"{target_date.strftime('%d-%m-%Y')}\n\n"
+            f"📆 *"
+            f"{target_date.strftime('%d-%m-%Y')}"
+            f"*\n\n"
 
-            "Tidak ada pengeluaran."
+            "📭 *Tidak ada pengeluaran*\n\n"
+
+            "Tidak ditemukan transaksi "
+            "pada tanggal tersebut."
 
         )
 
@@ -976,15 +1110,27 @@ async def date_report(
 
     )
 
+    # ========================================================
+    # HEADER
+    # ========================================================
+
     message = (
 
-        "📅 *Laporan Tanggal*\n\n"
+        "📅 *LAPORAN TANGGAL*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"📆 "
-        f"{target_date.strftime('%d-%m-%Y')}\n\n"
+        f"📆 *"
+        f"{target_date.strftime('%d-%m-%Y')}"
+        f"*\n\n"
 
-        f"💰 *Total: "
-        f"{format_rupiah(total)}*\n\n"
+        "💸 *TOTAL PENGELUARAN*\n"
+        f"*{format_rupiah(total)}*\n\n"
+
+        f"🧾 *{len(expenses)} transaksi*\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "📝 *DAFTAR TRANSAKSI*\n\n"
 
     )
 
@@ -1000,27 +1146,35 @@ async def date_report(
 
     ):
 
-        icon = category_icon(
+        category = (
             expense.category
+            or "Lainnya"
+        )
+
+        icon = category_icon(
+            category
+        )
+
+        description = (
+            expense.description
+            or "Transaksi"
         )
 
         message += (
 
-            f"{index}. "
-            f"{icon} "
-            f"{expense.description}\n"
+            f"*{index}. {icon} "
+            f"{description}*\n"
 
-            f"   "
+            f"   💵 "
             f"{format_rupiah(expense.amount)}\n"
 
-            f"   "
-            f"{expense.category}\n\n"
+            f"   🏷️ {category}\n\n"
 
         )
 
-    # ========================================================
-    # SEND
-    # ========================================================
+    message += (
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
 
     if update.message:
 
@@ -1031,3 +1185,187 @@ async def date_report(
             parse_mode="Markdown",
 
         )
+
+
+# ============================================================
+# REPORT MENU
+# ============================================================
+
+def build_report_keyboard():
+
+    keyboard = [
+
+        [
+
+            InlineKeyboardButton(
+                "📅 Hari Ini",
+                callback_data="report_today",
+            ),
+
+            InlineKeyboardButton(
+                "📆 Bulan Ini",
+                callback_data="report_month",
+            ),
+
+        ],
+
+        [
+
+            InlineKeyboardButton(
+                "📊 Rekap",
+                callback_data="report_summary",
+            ),
+
+            InlineKeyboardButton(
+                "📈 Statistik",
+                callback_data="report_statistics",
+            ),
+
+        ],
+
+    ]
+
+    return InlineKeyboardMarkup(
+        keyboard
+    )
+
+
+# ============================================================
+# REPORT MENU COMMAND
+# ============================================================
+
+async def report_menu(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    message = (
+
+        "📈 *LAPORAN PENGELUARAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "Pilih jenis laporan yang "
+        "ingin kamu lihat.\n\n"
+
+        "📅 *Hari Ini*\n"
+        "Melihat semua pengeluaran "
+        "hari ini.\n\n"
+
+        "📆 *Bulan Ini*\n"
+        "Melihat ringkasan pengeluaran "
+        "bulan berjalan.\n\n"
+
+        "📊 *Rekap*\n"
+        "Melihat pengeluaran berdasarkan "
+        "kategori.\n\n"
+
+        "📈 *Statistik*\n"
+        "Melihat analisis pengeluaran "
+        "lebih lengkap."
+
+    )
+
+    keyboard = (
+        build_report_keyboard()
+    )
+
+    if update.message:
+
+        await update.message.reply_text(
+
+            message,
+
+            reply_markup=keyboard,
+
+            parse_mode="Markdown",
+
+        )
+
+
+# ============================================================
+# REPORT CALLBACK
+# ============================================================
+
+async def report_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    if not query:
+
+        return
+
+    await query.answer()
+
+    if query.data == "report_today":
+
+        await query.message.reply_text(
+            "📅 Menampilkan laporan hari ini..."
+        )
+
+        await daily_report(
+            update,
+            context,
+        )
+
+        return
+
+    if query.data == "report_month":
+
+        await query.message.reply_text(
+            "📆 Menampilkan laporan bulan ini..."
+        )
+
+        await monthly_report(
+            update,
+            context,
+        )
+
+        return
+
+    if query.data == "report_summary":
+
+        await query.message.reply_text(
+            "📊 Menampilkan rekap pengeluaran..."
+        )
+
+        await expense_summary(
+            update,
+            context,
+        )
+
+        return
+
+    if query.data == "report_statistics":
+
+        await query.message.reply_text(
+
+            "📈 Gunakan `/statistik` "
+            "untuk melihat statistik "
+            "pengeluaran.",
+
+            parse_mode="Markdown",
+
+        )
+
+        return
+
+
+# ============================================================
+# CALLBACK HANDLER
+# ============================================================
+
+report_callback_handler = (
+    CallbackQueryHandler(
+
+        report_callback,
+
+        pattern=(
+            r"^report_"
+            r"(today|month|summary|statistics)$"
+        ),
+
+    )
+)

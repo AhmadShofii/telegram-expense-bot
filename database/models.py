@@ -1,12 +1,12 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
     Integer,
     String,
-    Text,
     UniqueConstraint,
 )
 
@@ -74,10 +74,6 @@ class Expense(Base):
         default=datetime.now,
     )
 
-    # --------------------------------------------------------
-    # RELATIONSHIP
-    # --------------------------------------------------------
-
     items: Mapped[list["ExpenseItem"]] = relationship(
         "ExpenseItem",
         back_populates="expense",
@@ -125,10 +121,6 @@ class ExpenseItem(Base):
         nullable=False,
         default=0,
     )
-
-    # --------------------------------------------------------
-    # RELATIONSHIP
-    # --------------------------------------------------------
 
     expense: Mapped["Expense"] = relationship(
         "Expense",
@@ -184,14 +176,6 @@ class Budget(Base):
         onupdate=datetime.now,
     )
 
-    # --------------------------------------------------------
-    # UNIQUE BUDGET
-    # --------------------------------------------------------
-    #
-    # Satu user hanya boleh punya satu budget
-    # untuk satu bulan dan tahun.
-    #
-
     __table_args__ = (
 
         UniqueConstraint(
@@ -201,4 +185,57 @@ class Budget(Base):
             name="uq_budget_user_year_month",
         ),
 
+    )
+
+
+# ============================================================
+# REMINDER
+# ============================================================
+
+class Reminder(Base):
+
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
+    hour: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=20,
+    )
+
+    minute: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now,
+        onupdate=datetime.now,
     )

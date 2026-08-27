@@ -56,9 +56,10 @@ def format_rupiah(amount) -> str:
 # MONTH NAME
 # ============================================================
 
-def get_month_name(
-    month: int,
-) -> str:
+def get_month_name(month: int) -> str:
+
+    if month < 1 or month > 12:
+        return "Bulan"
 
     return MONTH_NAMES[
         month - 1
@@ -198,6 +199,45 @@ def build_progress_bar(
 
 
 # ============================================================
+# GET BUDGET STATUS
+# ============================================================
+
+def get_budget_status(
+    percentage: float,
+):
+
+    if percentage >= 100:
+
+        return (
+            "🔴 *BUDGET TERLAMPAUI*",
+            "Pengeluaran kamu sudah "
+            "melewati batas budget."
+        )
+
+    if percentage >= 80:
+
+        return (
+            "🟡 *BUDGET HAMPIR HABIS*",
+            "Sebaiknya mulai mengurangi "
+            "pengeluaran sampai akhir bulan."
+        )
+
+    if percentage >= 50:
+
+        return (
+            "🟢 *BUDGET MASIH TERKONTROL*",
+            "Pengeluaran masih berada "
+            "dalam batas yang cukup aman."
+        )
+
+    return (
+        "🟢 *BUDGET MASIH AMAN*",
+        "Pengeluaran kamu masih "
+        "terkendali."
+    )
+
+
+# ============================================================
 # BUILD BUDGET MESSAGE
 # ============================================================
 
@@ -221,6 +261,10 @@ def build_budget_message(
         - expense_total
     )
 
+    # ========================================================
+    # PERCENTAGE
+    # ========================================================
+
     if budget_amount > 0:
 
         percentage = (
@@ -233,30 +277,33 @@ def build_budget_message(
 
         percentage = 0
 
+    # ========================================================
+    # PROGRESS BAR
+    # ========================================================
+
     progress_bar = build_progress_bar(
         percentage
     )
 
-    if percentage >= 100:
+    # ========================================================
+    # STATUS
+    # ========================================================
 
-        status = (
-            "🔴 *Budget terlampaui!*"
+    status, status_description = (
+        get_budget_status(
+            percentage
         )
+    )
 
-    elif percentage >= 80:
-
-        status = (
-            "🟡 *Peringatan! "
-            "Budget hampir habis.*"
-        )
-
-    else:
-
-        status = (
-            "🟢 *Budget masih aman.*"
-        )
+    # ========================================================
+    # REMAINING
+    # ========================================================
 
     if remaining >= 0:
+
+        remaining_label = (
+            "💵 *Sisa Budget*"
+        )
 
         remaining_text = (
             format_rupiah(
@@ -266,32 +313,47 @@ def build_budget_message(
 
     else:
 
+        remaining_label = (
+            "⚠️ *Melebihi Budget*"
+        )
+
         remaining_text = (
-            "-"
-            + format_rupiah(
+            format_rupiah(
                 abs(remaining)
             )
         )
 
+    # ========================================================
+    # MESSAGE
+    # ========================================================
+
     return (
 
-        f"💰 *Budget "
-        f"{month_name} "
+        "💰 *BUDGET BULANAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        f"📅 *{month_name} "
         f"{today.year}*\n\n"
 
-        f"Budget:\n"
-        f"*{format_rupiah(budget_amount)}*\n\n"
+        "🎯 *Batas Budget*\n"
+        f"{format_rupiah(budget_amount)}\n\n"
 
-        f"Pengeluaran:\n"
-        f"*{format_rupiah(expense_total)}*\n\n"
+        "💸 *Sudah Terpakai*\n"
+        f"{format_rupiah(expense_total)}\n\n"
 
-        f"Sisa:\n"
-        f"*{remaining_text}*\n\n"
+        f"{remaining_label}\n"
+        f"{remaining_text}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         f"{progress_bar} "
-        f"{percentage:.1f}%\n\n"
+        f"*{percentage:.1f}%*\n\n"
 
-        f"{status}"
+        f"{status}\n"
+        f"{status_description}\n\n"
+
+        "💡 Pantau pengeluaranmu "
+        "agar budget tetap terkendali."
 
     )
 
@@ -360,9 +422,6 @@ def build_warning_message(
     user_id: int,
     level: str,
 ):
-    """
-    Membuat pesan warning budget.
-    """
 
     budget = get_current_budget(
         user_id
@@ -405,16 +464,20 @@ def build_warning_message(
 
         return (
 
-            "🔴 *Budget terlampaui!*\n\n"
+            "🔴 *BUDGET TERLAMPAUI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"Budget: "
-            f"{format_rupiah(budget_amount)}\n"
+            "⚠️ Pengeluaran kamu sudah "
+            "melewati batas budget.\n\n"
 
-            f"Pengeluaran: "
-            f"{format_rupiah(expense_total)}\n"
+            f"🎯 Budget\n"
+            f"*{format_rupiah(budget_amount)}*\n\n"
 
-            f"Lebih: "
-            f"{format_rupiah(exceeded)}"
+            f"💸 Pengeluaran\n"
+            f"*{format_rupiah(expense_total)}*\n\n"
+
+            f"⚠️ Melebihi\n"
+            f"*{format_rupiah(exceeded)}*"
 
         )
 
@@ -431,19 +494,23 @@ def build_warning_message(
 
         return (
 
-            "🟡 *Peringatan Budget*\n\n"
+            "🟡 *PERINGATAN BUDGET*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
             f"Budget sudah terpakai "
             f"*{percentage:.1f}%*.\n\n"
 
-            f"Budget: "
-            f"{format_rupiah(budget_amount)}\n"
+            f"🎯 Budget\n"
+            f"{format_rupiah(budget_amount)}\n\n"
 
-            f"Pengeluaran: "
-            f"{format_rupiah(expense_total)}\n"
+            f"💸 Pengeluaran\n"
+            f"{format_rupiah(expense_total)}\n\n"
 
-            f"Sisa: "
-            f"{format_rupiah(remaining)}"
+            f"💵 Sisa\n"
+            f"{format_rupiah(remaining)}\n\n"
+
+            "⚠️ Sebaiknya mulai "
+            "mengurangi pengeluaran."
 
         )
 
@@ -458,15 +525,6 @@ async def send_budget_warning(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    """
-    Mengirim warning budget.
-
-    Anti-spam:
-    - Warning 80% hanya sekali per bulan.
-    - Warning 100% hanya sekali per bulan.
-    - Status disimpan di context.user_data.
-    - Bulan berbeda otomatis menggunakan key berbeda.
-    """
 
     if not update.effective_user:
 
@@ -563,7 +621,7 @@ async def send_budget_warning(
     except Exception as error:
 
         print(
-            "Budget warning error:"
+            "❌ Budget warning error:"
         )
 
         print(
@@ -616,13 +674,20 @@ async def show_budget(
 
         message = (
 
-            "💰 *Budget Bulanan*\n\n"
+            "💰 *BUDGET BULANAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🗓️ {month_name} "
-            f"{today.year}\n\n"
+            f"📅 *{month_name} "
+            f"{today.year}*\n\n"
 
-            "Belum ada budget "
-            "untuk bulan ini."
+            "📭 *Belum ada budget*\n\n"
+
+            "Kamu belum menetapkan "
+            "budget untuk bulan ini.\n\n"
+
+            "💡 Tentukan batas pengeluaran "
+            "agar lebih mudah mengontrol "
+            "keuangan kamu."
 
         )
 
@@ -645,7 +710,7 @@ async def show_budget(
         ]
 
     # ========================================================
-    # SUDAH ADA
+    # SUDAH ADA BUDGET
     # ========================================================
 
     else:
@@ -757,16 +822,18 @@ async def set_budget_prompt(
 
     await query.edit_message_text(
 
-        "💰 *Set Budget Bulanan*\n\n"
+        "💰 *SET BUDGET BULANAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         "Masukkan nominal budget "
         "untuk bulan ini.\n\n"
 
-        "Contoh:\n"
+        "💡 Contoh:\n"
         "`2500000`\n"
-        "`2.500.000`\n\n"
+        "`2.500.000`\n"
+        "`Rp2.500.000`\n\n"
 
-        "Kirim nominal sekarang.",
+        "Kirim nominal budget sekarang.",
 
         parse_mode="Markdown",
 
@@ -796,14 +863,18 @@ async def edit_budget_prompt(
 
     await query.edit_message_text(
 
-        "✏️ *Ubah Budget Bulanan*\n\n"
+        "✏️ *UBAH BUDGET BULANAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
         "Masukkan nominal budget "
         "baru untuk bulan ini.\n\n"
 
-        "Contoh:\n"
+        "💡 Contoh:\n"
         "`3000000`\n"
-        "`3.000.000`",
+        "`3.000.000`\n"
+        "`Rp3.000.000`\n\n"
+
+        "Kirim nominal baru sekarang.",
 
         parse_mode="Markdown",
 
@@ -865,7 +936,9 @@ async def budget_input(
 
         await update.message.reply_text(
 
-            "❌ Nominal tidak valid.\n\n"
+            "❌ *Nominal tidak valid*\n\n"
+
+            "Masukkan angka yang benar.\n\n"
 
             "Contoh:\n"
             "`2500000`\n"
@@ -919,6 +992,10 @@ async def budget_input(
             statement
         )
 
+        # ====================================================
+        # CREATE
+        # ====================================================
+
         if budget is None:
 
             budget = Budget(
@@ -939,6 +1016,10 @@ async def budget_input(
 
             action = "ditambahkan"
 
+        # ====================================================
+        # UPDATE
+        # ====================================================
+
         else:
 
             budget.amount = amount
@@ -948,7 +1029,7 @@ async def budget_input(
         db.commit()
 
         # ====================================================
-        # RESET WARNING UNTUK BULAN BERJALAN
+        # RESET WARNING
         # ====================================================
 
         warning_prefix = (
@@ -976,21 +1057,66 @@ async def budget_input(
                 None,
             )
 
+        # ====================================================
+        # CLEAR INPUT MODE
+        # ====================================================
+
         context.user_data.pop(
             "budget_input_mode",
             None,
         )
 
+        # ====================================================
+        # RESPONSE
+        # ====================================================
+
+        expense_total = (
+            get_current_expense_total(
+                user_id
+            )
+        )
+
+        percentage = 0
+
+        if amount > 0:
+
+            percentage = (
+                expense_total
+                / amount
+                * 100
+            )
+
+        progress_bar = (
+            build_progress_bar(
+                percentage
+            )
+        )
+
+        status, _ = (
+            get_budget_status(
+                percentage
+            )
+        )
+
         await update.message.reply_text(
 
-            "✅ *Budget berhasil "
-            f"{action}!*\n\n"
+            "✅ *BUDGET BERHASIL "
+            f"{action.upper()}!*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"💰 Budget "
-            f"{get_month_name(today.month)} "
-            f"{today.year}:\n\n"
+            f"📅 *{get_month_name(today.month)} "
+            f"{today.year}*\n\n"
 
-            f"*{format_rupiah(amount)}*",
+            "🎯 Budget\n"
+            f"*{format_rupiah(amount)}*\n\n"
+
+            f"💸 Terpakai\n"
+            f"{format_rupiah(expense_total)}\n\n"
+
+            f"{progress_bar} "
+            f"*{percentage:.1f}%*\n\n"
+
+            f"{status}",
 
             parse_mode="Markdown",
 
@@ -1001,7 +1127,7 @@ async def budget_input(
         db.rollback()
 
         print(
-            "Budget error:"
+            "❌ Budget error:"
         )
 
         print(

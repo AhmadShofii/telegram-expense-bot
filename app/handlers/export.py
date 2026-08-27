@@ -3,7 +3,7 @@ import os
 import tempfile
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -33,7 +33,21 @@ MONTH_NAMES = [
 
 
 # ============================================================
-# GET MONTH RANGE
+# FORMAT RUPIAH
+# ============================================================
+
+def format_rupiah(
+    amount: int,
+) -> str:
+
+    return (
+        f"Rp{int(amount):,}"
+        .replace(",", ".")
+    )
+
+
+# ============================================================
+# GET CURRENT MONTH RANGE
 # ============================================================
 
 def get_current_month_range():
@@ -69,7 +83,7 @@ def get_current_month_range():
 
 
 # ============================================================
-# GET EXPENSES
+# GET MONTHLY EXPENSES
 # ============================================================
 
 def get_monthly_expenses(
@@ -109,8 +123,6 @@ def get_monthly_expenses(
 
             try:
 
-                # Memaksa relationship items
-                # untuk dibaca sebelum session ditutup.
                 list(
                     expense.items
                 )
@@ -170,12 +182,19 @@ def create_csv_file(
     # ========================================================
 
     temp_file = tempfile.NamedTemporaryFile(
+
         mode="w",
+
         suffix=".csv",
+
         prefix="expense_",
+
         delete=False,
+
         newline="",
+
         encoding="utf-8-sig",
+
     )
 
     file_path = (
@@ -228,8 +247,11 @@ def create_csv_file(
         total = 0
 
         for index, expense in enumerate(
+
             expenses,
+
             start=1,
+
         ):
 
             amount = format_amount(
@@ -261,33 +283,50 @@ def create_csv_file(
                 for item in items:
 
                     item_name = (
+
                         getattr(
                             item,
                             "name",
                             "",
                         )
+
                         or ""
+
                     )
 
                     quantity = getattr(
+
                         item,
+
                         "quantity",
+
                         1,
+
                     )
 
                     item_amount = getattr(
+
                         item,
+
                         "amount",
+
                         0,
+
                     )
 
-                    if quantity and quantity != 1:
+                    if (
+
+                        quantity
+
+                        and quantity != 1
+
+                    ):
 
                         item_parts.append(
 
                             f"{item_name} "
                             f"x{quantity} "
-                            f"Rp{format_amount(item_amount):,}"
+                            f"{format_rupiah(item_amount)}"
 
                         )
 
@@ -296,7 +335,7 @@ def create_csv_file(
                         item_parts.append(
 
                             f"{item_name} "
-                            f"Rp{format_amount(item_amount):,}"
+                            f"{format_rupiah(item_amount)}"
 
                         )
 
@@ -331,14 +370,25 @@ def create_csv_file(
             # ================================================
 
             writer.writerow(
+
                 [
+
                     index,
+
                     date_text,
-                    expense.description or "",
-                    expense.category or "Lainnya",
+
+                    expense.description
+                    or "",
+
+                    expense.category
+                    or "Lainnya",
+
                     amount,
+
                     item_text,
+
                 ]
+
             )
 
         # ====================================================
@@ -348,14 +398,23 @@ def create_csv_file(
         writer.writerow([])
 
         writer.writerow(
+
             [
+
                 "",
+
                 "",
+
                 "",
+
                 "TOTAL",
+
                 total,
+
                 "",
+
             ]
+
         )
 
         temp_file.flush()
@@ -365,6 +424,48 @@ def create_csv_file(
         temp_file.close()
 
     return file_path
+
+
+# ============================================================
+# GET EXPORT SUMMARY
+# ============================================================
+
+def get_export_summary(
+    expenses,
+):
+
+    total = sum(
+
+        format_amount(
+            expense.amount
+        )
+
+        for expense in expenses
+
+    )
+
+    transaction_count = len(
+        expenses
+    )
+
+    category_count = len({
+
+        expense.category
+        or "Lainnya"
+
+        for expense in expenses
+
+    })
+
+    return (
+
+        total,
+
+        transaction_count,
+
+        category_count,
+
+    )
 
 
 # ============================================================
@@ -386,26 +487,39 @@ async def export_command(
 
     processing_message = None
 
+    file_path = None
+
     try:
 
         # ====================================================
-        # PROCESSING
+        # PROCESSING MESSAGE
         # ====================================================
 
         if update.message:
 
             processing_message = (
+
                 await update.message.reply_text(
-                    "📤 Sedang membuat "
-                    "laporan..."
+
+                    "📤 *MENYIAPKAN EXPORT*\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                    "⏳ Sedang membuat "
+                    "laporan pengeluaran...\n\n"
+
+                    "Mohon tunggu sebentar.",
+
+                    parse_mode="Markdown",
+
                 )
+
             )
 
         # ====================================================
-        # CREATE CSV
-        # ========================================================
+        # GET EXPENSES
+        # ====================================================
 
-        file_path = create_csv_file(
+        expenses = get_monthly_expenses(
             user_id
         )
 
@@ -413,36 +527,55 @@ async def export_command(
         # NO DATA
         # ========================================================
 
-        if not file_path:
+        if not expenses:
 
             if processing_message:
 
                 await processing_message.edit_text(
 
-                    "📭 Belum ada "
-                    "pengeluaran pada "
-                    "bulan ini.\n\n"
+                    "📤 *EXPORT LAPORAN*\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-                    "Belum ada laporan "
-                    "yang dapat diekspor."
+                    "📭 *Belum ada data*\n\n"
 
-                )
+                    "Belum ada pengeluaran "
+                    "pada bulan ini.\n\n"
 
-            elif update.message:
+                    "Catat transaksi terlebih "
+                    "dahulu sebelum melakukan "
+                    "export.",
 
-                await update.message.reply_text(
-
-                    "📭 Belum ada "
-                    "pengeluaran pada "
-                    "bulan ini."
+                    parse_mode="Markdown",
 
                 )
 
             return
 
         # ====================================================
-        # MONTH
+        # CREATE FILE
         # ====================================================
+
+        file_path = create_csv_file(
+            user_id
+        )
+
+        if not file_path:
+
+            raise RuntimeError(
+                "CSV file gagal dibuat."
+            )
+
+        # ====================================================
+        # SUMMARY
+        # ====================================================
+
+        total, transaction_count, category_count = (
+
+            get_export_summary(
+                expenses
+            )
+
+        )
 
         today = date.today()
 
@@ -469,8 +602,11 @@ async def export_command(
         # ====================================================
 
         with open(
+
             file_path,
+
             "rb",
+
         ) as csv_file:
 
             if update.message:
@@ -480,22 +616,40 @@ async def export_command(
                     document=csv_file,
 
                     filename=(
+
                         f"laporan_pengeluaran_"
+
                         f"{today.year}_"
+
                         f"{today.month:02d}.csv"
+
                     ),
 
                     caption=(
 
-                        "📊 *Laporan Pengeluaran*\n\n"
+                        "📤 *EXPORT BERHASIL*\n"
+                        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-                        f"🗓️ "
-                        f"{month_name} "
-                        f"{today.year}\n\n"
+                        f"🗓️ *{month_name} "
+                        f"{today.year}*\n\n"
 
-                        "File CSV berisi "
-                        "seluruh pengeluaran "
-                        "bulan berjalan."
+                        "📊 *Ringkasan*\n\n"
+
+                        f"🧾 Transaksi: "
+                        f"*{transaction_count}*\n"
+
+                        f"🏷️ Kategori: "
+                        f"*{category_count}*\n"
+
+                        f"💸 Total: "
+                        f"*{format_rupiah(total)}*\n\n"
+
+                        "📄 Format: *CSV*\n\n"
+
+                        "File dapat dibuka dengan "
+                        "Microsoft Excel, "
+                        "Google Sheets, atau "
+                        "aplikasi spreadsheet lainnya."
 
                     ),
 
@@ -504,13 +658,19 @@ async def export_command(
                 )
 
         # ====================================================
-        # DELETE TEMP FILE
+        # CLEANUP
         # ====================================================
 
         try:
 
-            if os.path.exists(
+            if (
+
                 file_path
+
+                and os.path.exists(
+                    file_path
+                )
+
             ):
 
                 os.remove(
@@ -521,15 +681,21 @@ async def export_command(
 
             pass
 
+        file_path = None
+
     except Exception as error:
 
         print(
-            "Export error:"
+            "❌ Export error:"
         )
 
         print(
             repr(error)
         )
+
+        # ====================================================
+        # ERROR MESSAGE
+        # ====================================================
 
         if processing_message:
 
@@ -537,8 +703,15 @@ async def export_command(
 
                 await processing_message.edit_text(
 
-                    "❌ Terjadi kesalahan "
-                    "saat membuat laporan."
+                    "❌ *EXPORT GAGAL*\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                    "Terjadi kesalahan saat "
+                    "membuat laporan.\n\n"
+
+                    "Silakan coba lagi.",
+
+                    parse_mode="Markdown",
 
                 )
 
@@ -550,23 +723,33 @@ async def export_command(
 
             await update.message.reply_text(
 
-                "❌ Terjadi kesalahan "
-                "saat membuat laporan."
+                "❌ *EXPORT GAGAL*\n\n"
+
+                "Terjadi kesalahan saat "
+                "membuat laporan.\n\n"
+
+                "Silakan coba lagi.",
+
+                parse_mode="Markdown",
 
             )
 
+    finally:
+
         # ====================================================
-        # CLEANUP
+        # FINAL CLEANUP
         # ====================================================
 
         try:
 
             if (
-                "file_path" in locals()
-                and file_path
+
+                file_path
+
                 and os.path.exists(
                     file_path
                 )
+
             ):
 
                 os.remove(

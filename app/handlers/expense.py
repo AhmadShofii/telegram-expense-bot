@@ -1,5 +1,4 @@
 import re
-
 from datetime import date
 
 from telegram import (
@@ -16,21 +15,15 @@ from telegram.ext import (
 from database.db import SessionLocal
 from database.models import Expense
 
-from app.handlers.budget import (
-    send_budget_warning,
-)
-
 
 # ============================================================
 # FORMAT RUPIAH
 # ============================================================
 
-def format_rupiah(
-    amount: int,
-) -> str:
+def format_rupiah(amount: int) -> str:
 
     return (
-        f"Rp{amount:,}"
+        f"Rp{int(amount):,}"
         .replace(",", ".")
     )
 
@@ -39,9 +32,7 @@ def format_rupiah(
 # PARSE EXPENSE
 # ============================================================
 
-def parse_expense(
-    text: str,
-):
+def parse_expense(text: str):
 
     """
     Format yang didukung:
@@ -55,29 +46,24 @@ def parse_expense(
 
     text = text.strip()
 
+    if not text:
+        return None
+
     # ========================================================
     # FORMAT RIBU / RB
     # ========================================================
 
     match = re.search(
-
-        r"(\d+(?:[.,]\d+)?)\s*"
-        r"(ribu|rb)",
-
+        r"(\d+(?:[.,]\d+)?)\s*(ribu|rb)\s*$",
         text,
-
         re.IGNORECASE,
-
     )
 
     if match:
 
         number = (
             match.group(1)
-            .replace(
-                ",",
-                ".",
-            )
+            .replace(",", ".")
         )
 
         try:
@@ -93,7 +79,6 @@ def parse_expense(
         description = (
 
             text[:match.start()]
-
             + text[match.end():]
 
         ).strip()
@@ -112,20 +97,15 @@ def parse_expense(
     # ========================================================
 
     match = re.search(
-
         r"(\d[\d.,]*)$",
-
         text,
-
     )
 
     if not match:
 
         return None
 
-    raw_amount = (
-        match.group(1)
-    )
+    raw_amount = match.group(1)
 
     raw_amount = re.sub(
         r"[.,]",
@@ -143,12 +123,13 @@ def parse_expense(
 
         return None
 
+    if amount <= 0:
+
+        return None
+
     description = (
-
         text[:match.start()]
-
         .strip()
-
     )
 
     if not description:
@@ -217,6 +198,31 @@ def detect_category(
 
     ]
 
+    health_keywords = [
+
+        "obat",
+        "apotek",
+        "dokter",
+        "rumah sakit",
+        "rs",
+        "vitamin",
+        "kesehatan",
+
+    ]
+
+    entertainment_keywords = [
+
+        "bioskop",
+        "film",
+        "game",
+        "gaming",
+        "steam",
+        "netflix",
+        "spotify",
+        "hiburan",
+
+    ]
+
     if any(
         keyword in text
         for keyword in food_keywords
@@ -238,7 +244,91 @@ def detect_category(
 
         return "Belanja"
 
+    if any(
+        keyword in text
+        for keyword in health_keywords
+    ):
+
+        return "Kesehatan"
+
+    if any(
+        keyword in text
+        for keyword in entertainment_keywords
+    ):
+
+        return "Hiburan"
+
     return "Lainnya"
+
+
+# ============================================================
+# CATEGORY ICON
+# ============================================================
+
+def category_icon(
+    category: str,
+) -> str:
+
+    icons = {
+
+        "Makanan": "🍜",
+
+        "Transportasi": "🚗",
+
+        "Belanja": "🛒",
+
+        "Kesehatan": "💊",
+
+        "Hiburan": "🎮",
+
+        "Lainnya": "📦",
+
+    }
+
+    return icons.get(
+        category,
+        "📦",
+    )
+
+
+# ============================================================
+# BUILD CONFIRMATION MESSAGE
+# ============================================================
+
+def build_confirmation_message(
+    description: str,
+    amount: int,
+    category: str,
+    expense_date: date,
+) -> str:
+
+    icon = category_icon(
+        category
+    )
+
+    return (
+
+        "🧾 *KONFIRMASI PENGELUARAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "📝 *Deskripsi*\n"
+        f"{description}\n\n"
+
+        "💵 *Nominal*\n"
+        f"*{format_rupiah(amount)}*\n\n"
+
+        f"{icon} *Kategori*\n"
+        f"{category}\n\n"
+
+        "📅 *Tanggal*\n"
+        f"{expense_date.strftime('%d-%m-%Y')}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "Pastikan data di atas sudah benar.\n"
+        "Simpan transaksi sekarang?"
+
+    )
 
 
 # ============================================================
@@ -262,20 +352,31 @@ async def expense_message(
         update.message.text
     )
 
+    # ========================================================
+    # INVALID FORMAT
+    # ========================================================
+
     if not result:
 
         await update.message.reply_text(
 
-            "❌ Format pengeluaran "
-            "belum dikenali.\n\n"
+            "❌ *FORMAT TIDAK DIKENALI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "Gunakan format:\n\n"
+
+            "📝 *Deskripsi + nominal*\n\n"
 
             "Contoh:\n"
+            "• `Makan siang 25000`\n"
+            "• `Bensin 50 ribu`\n"
+            "• `Kopi 15000`\n"
+            "• `Belanja 125.000`\n\n"
 
-            "• Makan siang 25000\n"
+            "💡 Nominal bisa menggunakan "
+            "`rb`, `ribu`, titik, atau angka biasa.",
 
-            "• Bensin 50 ribu\n"
-
-            "• Kopi 15000"
+            parse_mode="Markdown",
 
         )
 
@@ -290,10 +391,6 @@ async def expense_message(
     user_id = (
         update.effective_user.id
     )
-
-    # ========================================================
-    # TANGGAL
-    # ========================================================
 
     expense_date = date.today()
 
@@ -345,7 +442,7 @@ async def expense_message(
 
             ),
 
-        ]
+        ],
 
     ]
 
@@ -355,24 +452,25 @@ async def expense_message(
         )
     )
 
+    # ========================================================
+    # CONFIRMATION
+    # ========================================================
+
+    message = build_confirmation_message(
+
+        description,
+
+        amount,
+
+        category,
+
+        expense_date,
+
+    )
+
     await update.message.reply_text(
 
-        "💰 *Pengeluaran ditemukan*\n\n"
-
-        f"📝 Deskripsi: "
-        f"{description}\n"
-
-        f"💵 Nominal: "
-        f"{format_rupiah(amount)}\n"
-
-        f"🏷️ Kategori: "
-        f"{category}\n"
-
-        f"📅 Tanggal: "
-        f"{expense_date.strftime('%d-%m-%Y')}\n\n"
-
-        "Apakah ingin menyimpan "
-        "transaksi ini?",
+        message,
 
         reply_markup=reply_markup,
 
@@ -398,8 +496,10 @@ async def expense_callback(
 
     await query.answer()
 
-    pending = context.user_data.get(
-        "pending_expense"
+    pending = (
+        context.user_data.get(
+            "pending_expense"
+        )
     )
 
     # ========================================================
@@ -409,13 +509,24 @@ async def expense_callback(
     if query.data == "expense_cancel":
 
         context.user_data.pop(
+
             "pending_expense",
+
             None,
+
         )
 
         await query.edit_message_text(
 
-            "❌ Pengeluaran dibatalkan."
+            "❌ *PENCATATAN DIBATALKAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            "Transaksi tidak disimpan.\n\n"
+
+            "💡 Kamu bisa mencatat "
+            "pengeluaran lagi kapan saja.",
+
+            parse_mode="Markdown",
 
         )
 
@@ -431,8 +542,15 @@ async def expense_callback(
 
             await query.edit_message_text(
 
-                "❌ Data pengeluaran "
-                "sudah tidak tersedia."
+                "❌ *DATA TIDAK DITEMUKAN*\n\n"
+
+                "Data pengeluaran sudah "
+                "tidak tersedia.\n\n"
+
+                "Silakan masukkan transaksi "
+                "kembali.",
+
+                parse_mode="Markdown",
 
             )
 
@@ -476,54 +594,65 @@ async def expense_callback(
                 expense
             )
 
-            # =================================================
-            # SUCCESS
-            # =================================================
+            icon = category_icon(
+                expense.category
+            )
 
             await query.edit_message_text(
 
-                "✅ *Pengeluaran "
-                "berhasil disimpan!*\n\n"
+                "✅ *PENGELUARAN TERSIMPAN*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-                f"📝 "
-                f"{expense.description}\n"
+                "🎉 Transaksi berhasil "
+                "ditambahkan.\n\n"
 
-                f"💵 "
-                f"{format_rupiah(expense.amount)}\n"
+                f"📝 *{expense.description}*\n"
 
-                f"🏷️ "
+                f"💵 *"
+                f"{format_rupiah(expense.amount)}"
+                f"*\n"
+
+                f"{icon} "
                 f"{expense.category}\n"
 
                 f"📅 "
-                f"{expense.expense_date.strftime('%d-%m-%Y')}",
+                f"{expense.expense_date.strftime('%d-%m-%Y')}\n\n"
+
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                "📋 Transaksi sudah masuk "
+                "ke riwayat pengeluaran."
+
+                "\n\n"
+                "Gunakan `/riwayat` "
+                "untuk melihatnya.",
 
                 parse_mode="Markdown",
 
             )
 
-            # =================================================
-            # BUDGET WARNING
-            # =================================================
-
-            await send_budget_warning(
-                update,
-                context,
-            )
-
         except Exception as error:
 
             print(
-                f"Expense save error: "
-                f"{error}"
+                "❌ Expense save error:"
+            )
+
+            print(
+                repr(error)
             )
 
             db.rollback()
 
             await query.edit_message_text(
 
-                "❌ Terjadi kesalahan "
-                "saat menyimpan "
-                "pengeluaran."
+                "❌ *GAGAL MENYIMPAN*\n\n"
+
+                "Terjadi kesalahan saat "
+                "menyimpan pengeluaran.\n\n"
+
+                "Silakan coba lagi.",
+
+                parse_mode="Markdown",
 
             )
 
@@ -532,8 +661,11 @@ async def expense_callback(
             db.close()
 
             context.user_data.pop(
+
                 "pending_expense",
+
                 None,
+
             )
 
 
