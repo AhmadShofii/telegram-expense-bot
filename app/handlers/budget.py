@@ -56,9 +56,13 @@ def format_rupiah(amount) -> str:
 # MONTH NAME
 # ============================================================
 
-def get_month_name(month: int) -> str:
+def get_month_name(
+    month: int,
+) -> str:
 
-    return MONTH_NAMES[month - 1]
+    return MONTH_NAMES[
+        month - 1
+    ]
 
 
 # ============================================================
@@ -263,12 +267,10 @@ def build_budget_message(
     else:
 
         remaining_text = (
-
             "-"
             + format_rupiah(
                 abs(remaining)
             )
-
         )
 
     return (
@@ -295,38 +297,29 @@ def build_budget_message(
 
 
 # ============================================================
-# BUILD BUDGET WARNING
+# GET BUDGET WARNING LEVEL
 # ============================================================
 
-def build_budget_warning(
+def get_budget_warning_level(
     user_id: int,
 ):
     """
-    Menghasilkan pesan warning berdasarkan
-    penggunaan budget bulan berjalan.
+    Menentukan level warning berdasarkan
+    pengeluaran bulan berjalan.
 
     Return:
-        None  -> belum ada warning
-        str   -> pesan warning
+        None
+        "80"
+        "100"
     """
 
     budget = get_current_budget(
         user_id
     )
 
-    # --------------------------------------------------------
-    # Belum ada budget
-    # --------------------------------------------------------
-
     if not budget:
 
         return None
-
-    expense_total = (
-        get_current_expense_total(
-            user_id
-        )
-    )
 
     budget_amount = int(
         budget.amount
@@ -336,25 +329,74 @@ def build_budget_warning(
 
         return None
 
+    expense_total = (
+        get_current_expense_total(
+            user_id
+        )
+    )
+
     percentage = (
         expense_total
         / budget_amount
         * 100
     )
 
-    # --------------------------------------------------------
-    # Di bawah 80%
-    # --------------------------------------------------------
+    if percentage >= 100:
 
-    if percentage < 80:
+        return "100"
+
+    if percentage >= 80:
+
+        return "80"
+
+    return None
+
+
+# ============================================================
+# BUILD WARNING MESSAGE
+# ============================================================
+
+def build_warning_message(
+    user_id: int,
+    level: str,
+):
+    """
+    Membuat pesan warning budget.
+    """
+
+    budget = get_current_budget(
+        user_id
+    )
+
+    if not budget:
 
         return None
 
-    # --------------------------------------------------------
-    # Budget terlampaui
-    # --------------------------------------------------------
+    budget_amount = int(
+        budget.amount
+    )
 
-    if percentage >= 100:
+    if budget_amount <= 0:
+
+        return None
+
+    expense_total = (
+        get_current_expense_total(
+            user_id
+        )
+    )
+
+    percentage = (
+        expense_total
+        / budget_amount
+        * 100
+    )
+
+    # ========================================================
+    # 100%
+    # ========================================================
+
+    if level == "100":
 
         exceeded = (
             expense_total
@@ -376,44 +418,54 @@ def build_budget_warning(
 
         )
 
-    # --------------------------------------------------------
-    # 80% - 99%
-    # --------------------------------------------------------
+    # ========================================================
+    # 80%
+    # ========================================================
 
-    remaining = (
-        budget_amount
-        - expense_total
-    )
+    if level == "80":
 
-    return (
+        remaining = (
+            budget_amount
+            - expense_total
+        )
 
-        "🟡 *Peringatan Budget*\n\n"
+        return (
 
-        f"Budget sudah terpakai "
-        f"*{percentage:.1f}%*.\n\n"
+            "🟡 *Peringatan Budget*\n\n"
 
-        f"Budget: "
-        f"{format_rupiah(budget_amount)}\n"
+            f"Budget sudah terpakai "
+            f"*{percentage:.1f}%*.\n\n"
 
-        f"Pengeluaran: "
-        f"{format_rupiah(expense_total)}\n"
+            f"Budget: "
+            f"{format_rupiah(budget_amount)}\n"
 
-        f"Sisa: "
-        f"{format_rupiah(remaining)}"
+            f"Pengeluaran: "
+            f"{format_rupiah(expense_total)}\n"
 
-    )
+            f"Sisa: "
+            f"{format_rupiah(remaining)}"
+
+        )
+
+    return None
 
 
 # ============================================================
-# GET BUDGET WARNING
+# SEND BUDGET WARNING
 # ============================================================
 
 async def send_budget_warning(
     update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
 ):
     """
-    Mengirim warning budget setelah transaksi berhasil
-    disimpan.
+    Mengirim warning budget.
+
+    Anti-spam:
+    - Warning 80% hanya sekali per bulan.
+    - Warning 100% hanya sekali per bulan.
+    - Status disimpan di context.user_data.
+    - Bulan berbeda otomatis menggunakan key berbeda.
     """
 
     if not update.effective_user:
@@ -424,23 +476,109 @@ async def send_budget_warning(
         update.effective_user.id
     )
 
-    warning = build_budget_warning(
+    today = date.today()
+
+    # ========================================================
+    # WARNING LEVEL
+    # ========================================================
+
+    level = get_budget_warning_level(
         user_id
+    )
+
+    if not level:
+
+        return
+
+    # ========================================================
+    # UNIQUE MONTH KEY
+    # ========================================================
+
+    month_key = (
+        f"{today.year}_"
+        f"{today.month}"
+    )
+
+    warning_key = (
+        f"budget_warning_"
+        f"{month_key}_"
+        f"{level}"
+    )
+
+    # ========================================================
+    # CHECK ALREADY SENT
+    # ========================================================
+
+    if context.user_data.get(
+        warning_key
+    ):
+
+        return
+
+    # ========================================================
+    # BUILD MESSAGE
+    # ========================================================
+
+    warning = build_warning_message(
+        user_id,
+        level,
     )
 
     if not warning:
 
         return
 
-    if update.message:
+    # ========================================================
+    # SEND MESSAGE
+    # ========================================================
 
-        await update.message.reply_text(
+    try:
 
-            warning,
+        if update.message:
 
-            parse_mode="Markdown",
+            await update.message.reply_text(
 
+                warning,
+
+                parse_mode="Markdown",
+
+            )
+
+        elif update.callback_query:
+
+            if update.callback_query.message:
+
+                await (
+                    update.callback_query.message
+                    .reply_text(
+                        warning,
+                        parse_mode="Markdown",
+                    )
+                )
+
+        else:
+
+            return
+
+    except Exception as error:
+
+        print(
+            "Budget warning error:"
         )
+
+        print(
+            repr(error)
+        )
+
+        return
+
+    # ========================================================
+    # SAVE WARNING STATUS
+    # ========================================================
+
+    context.user_data[
+        warning_key
+    ] = True
 
 
 # ============================================================
@@ -464,9 +602,9 @@ async def show_budget(
         user_id
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # BELUM ADA BUDGET
-    # --------------------------------------------------------
+    # ========================================================
 
     if not budget:
 
@@ -506,9 +644,9 @@ async def show_budget(
 
         ]
 
-    # --------------------------------------------------------
+    # ========================================================
     # SUDAH ADA
-    # --------------------------------------------------------
+    # ========================================================
 
     else:
 
@@ -548,9 +686,9 @@ async def show_budget(
         keyboard
     )
 
-    # --------------------------------------------------------
+    # ========================================================
     # CALLBACK
-    # --------------------------------------------------------
+    # ========================================================
 
     if update.callback_query:
 
@@ -564,9 +702,9 @@ async def show_budget(
 
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # MESSAGE
-    # --------------------------------------------------------
+    # ========================================================
 
     elif update.message:
 
@@ -808,6 +946,35 @@ async def budget_input(
             action = "diperbarui"
 
         db.commit()
+
+        # ====================================================
+        # RESET WARNING UNTUK BULAN BERJALAN
+        # ====================================================
+
+        warning_prefix = (
+            f"budget_warning_"
+            f"{today.year}_"
+            f"{today.month}_"
+        )
+
+        keys_to_remove = [
+
+            key
+
+            for key in context.user_data.keys()
+
+            if key.startswith(
+                warning_prefix
+            )
+
+        ]
+
+        for key in keys_to_remove:
+
+            context.user_data.pop(
+                key,
+                None,
+            )
 
         context.user_data.pop(
             "budget_input_mode",
