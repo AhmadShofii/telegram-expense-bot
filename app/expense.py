@@ -15,13 +15,13 @@ from database.db import SessionLocal
 from database.models import Expense
 
 
-# ==========================================
-# PARSE PENGELUARAN
-# ==========================================
+# ==================================================
+# PARSE EXPENSE
+# ==================================================
 
 def parse_expense(text: str):
     """
-    Format yang didukung:
+    Format:
 
     Makan siang 25000
     Makan siang 25.000
@@ -32,9 +32,9 @@ def parse_expense(text: str):
 
     text = text.strip()
 
-    # ==================================
+    # ==========================================
     # FORMAT RIBU
-    # ==================================
+    # ==========================================
 
     match = re.search(
         r"(\d+(?:[.,]\d+)?)\s*(ribu|rb)",
@@ -69,9 +69,9 @@ def parse_expense(text: str):
 
         return description, amount
 
-    # ==================================
-    # FORMAT ANGKA BIASA
-    # ==================================
+    # ==========================================
+    # FORMAT ANGKA
+    # ==========================================
 
     match = re.search(
         r"(\d[\d.,]*)$",
@@ -108,9 +108,9 @@ def parse_expense(text: str):
     return description, amount
 
 
-# ==========================================
-# DETEKSI KATEGORI
-# ==========================================
+# ==================================================
+# CATEGORY
+# ==================================================
 
 def detect_category(
     description: str,
@@ -174,9 +174,9 @@ def detect_category(
     return "Lainnya"
 
 
-# ==========================================
-# FORMAT RUPIAH
-# ==========================================
+# ==================================================
+# RUPIAH
+# ==================================================
 
 def format_rupiah(
     amount: int,
@@ -188,9 +188,9 @@ def format_rupiah(
     )
 
 
-# ==========================================
-# PESAN PENGELUARAN
-# ==========================================
+# ==================================================
+# TEXT EXPENSE
+# ==================================================
 
 async def expense_message(
     update: Update,
@@ -228,9 +228,9 @@ async def expense_message(
 
     user_id = update.effective_user.id
 
-    # ==================================
-    # SIMPAN DATA SEMENTARA
-    # ==================================
+    # ==========================================
+    # PENDING EXPENSE
+    # ==========================================
 
     context.user_data[
         "pending_expense"
@@ -246,9 +246,9 @@ async def expense_message(
 
     }
 
-    # ==================================
+    # ==========================================
     # BUTTON
-    # ==================================
+    # ==========================================
 
     keyboard = [
 
@@ -272,10 +272,6 @@ async def expense_message(
         keyboard
     )
 
-    # ==================================
-    # KONFIRMASI
-    # ==================================
-
     await update.message.reply_text(
 
         "💰 *Pengeluaran ditemukan*\n\n"
@@ -297,9 +293,9 @@ async def expense_message(
     )
 
 
-# ==========================================
+# ==================================================
 # CALLBACK
-# ==========================================
+# ==================================================
 
 async def expense_callback(
     update: Update,
@@ -317,9 +313,9 @@ async def expense_callback(
         "pending_expense"
     )
 
-    # ==================================
-    # BATAL
-    # ==================================
+    # ==========================================
+    # CANCEL
+    # ==========================================
 
     if query.data == "expense_cancel":
 
@@ -334,9 +330,9 @@ async def expense_callback(
 
         return
 
-    # ==================================
-    # SIMPAN
-    # ==================================
+    # ==========================================
+    # SAVE
+    # ==========================================
 
     if query.data == "expense_save":
 
@@ -417,18 +413,13 @@ async def expense_callback(
             )
 
 
-# ==========================================
+# ==================================================
 # CALLBACK HANDLER
-# ==========================================
+# ==================================================
 
 expense_callback_handler = (
     CallbackQueryHandler(
-
         expense_callback,
-
-        pattern=(
-            r"^expense_(save|cancel)$"
-        ),
-
+        pattern=r"^expense_(save|cancel)$",
     )
 )
