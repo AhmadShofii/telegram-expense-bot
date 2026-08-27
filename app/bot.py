@@ -65,9 +65,16 @@ from app.handlers.history import (
     history_callback_handler,
     history_detail_handler,
     history_back_handler,
+
+    expense_edit_handler,
+    edit_field_handler,
+    edit_cancel_handler,
+
     delete_expense_confirmation_handler,
     delete_expense_handler,
     delete_expense_cancel_handler,
+
+    edit_expense_text,
 )
 
 
@@ -76,6 +83,36 @@ from app.handlers.history import (
 # ============================================================
 
 from database.db import init_db
+
+
+# ============================================================
+# EDIT TEXT ROUTER
+# ============================================================
+
+async def edit_text_router(
+    update: Update,
+    context,
+):
+
+    editing_expense = context.user_data.get(
+        "editing_expense_field"
+    )
+
+    if editing_expense:
+
+        handled = await edit_expense_text(
+            update,
+            context,
+        )
+
+        if handled:
+
+            return
+
+    await expense_message(
+        update,
+        context,
+    )
 
 
 # ============================================================
@@ -169,7 +206,23 @@ def main():
     )
 
     # ========================================================
-    # DELETE
+    # EDIT SAVED EXPENSE
+    # ========================================================
+
+    application.add_handler(
+        expense_edit_handler
+    )
+
+    application.add_handler(
+        edit_field_handler
+    )
+
+    application.add_handler(
+        edit_cancel_handler
+    )
+
+    # ========================================================
+    # DELETE EXPENSE
     # ========================================================
 
     application.add_handler(
@@ -196,16 +249,12 @@ def main():
     )
 
     # ========================================================
-    # RECEIPT SAVE / CANCEL
+    # RECEIPT CALLBACK
     # ========================================================
 
     application.add_handler(
         receipt_callback_handler
     )
-
-    # ========================================================
-    # RECEIPT EDIT MENU
-    # ========================================================
 
     application.add_handler(
         receipt_edit_callback_handler
@@ -220,34 +269,19 @@ def main():
     )
 
     # ========================================================
-    # RECEIPT EDIT TEXT
+    # TEXT ROUTER
+    #
+    # Menangani:
+    # - edit transaksi tersimpan
+    # - edit receipt pending
+    # - input expense manual
     # ========================================================
 
     application.add_handler(
         MessageHandler(
             filters.TEXT
             & ~filters.COMMAND,
-            receipt_edit_text,
-        )
-    )
-
-    # ========================================================
-    # MANUAL EXPENSE CALLBACK
-    # ========================================================
-
-    application.add_handler(
-        expense_callback_handler
-    )
-
-    # ========================================================
-    # MANUAL EXPENSE TEXT
-    # ========================================================
-
-    application.add_handler(
-        MessageHandler(
-            filters.TEXT
-            & ~filters.COMMAND,
-            expense_message,
+            edit_text_router,
         )
     )
 
