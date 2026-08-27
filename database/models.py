@@ -1,7 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import (
+    DateTime,
+    Integer,
+    String,
+)
+
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+)
 
 
 class Base(DeclarativeBase):
@@ -9,6 +18,7 @@ class Base(DeclarativeBase):
 
 
 class Expense(Base):
+
     __tablename__ = "expenses"
 
     id: Mapped[int] = mapped_column(
@@ -22,9 +32,11 @@ class Expense(Base):
         nullable=False,
     )
 
-    description: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
+    description: Mapped[str] = (
+        mapped_column(
+            String(255),
+            nullable=False,
+        )
     )
 
     amount: Mapped[int] = mapped_column(
@@ -32,14 +44,18 @@ class Expense(Base):
         nullable=False,
     )
 
-    category: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        default="Lainnya",
+    category: Mapped[str] = (
+        mapped_column(
+            String(100),
+            nullable=False,
+            default="Lainnya",
+        )
     )
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        nullable=False,
+    created_at: Mapped[datetime] = (
+        mapped_column(
+            DateTime,
+            default=datetime.utcnow,
+            nullable=False,
+        )
     )

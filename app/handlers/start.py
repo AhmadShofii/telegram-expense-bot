@@ -8,10 +8,13 @@ async def start_command(
 ):
     await update.message.reply_text(
         "👋 Halo! Selamat datang di Expense Bot.\n\n"
-        "Bot ini akan membantu kamu mencatat pengeluaran harian.\n\n"
-        "Fitur yang akan tersedia:\n"
+        "Bot ini membantu kamu mencatat "
+        "pengeluaran harian.\n\n"
         "💰 Catat pengeluaran\n"
-        "📷 Scan struk\n"
-        "📊 Rekap pengeluaran\n\n"
-        "Untuk sekarang, bot sudah siap digunakan."
+        "📊 Lihat laporan harian\n"
+        "📅 Lihat laporan bulanan\n"
+        "📷 Scan struk\n\n"
+        "Contoh:\n"
+        "Makan siang 25000\n"
+        "Bensin 50 ribu"
     )
