@@ -1,13 +1,22 @@
 from sqlalchemy import create_engine
+
 from sqlalchemy.orm import sessionmaker
 
 from database.models import Base
 
 
+# ============================================================
+# DATABASE URL
+# ============================================================
+
 DATABASE_URL = (
     "sqlite:///database/expenses.db"
 )
 
+
+# ============================================================
+# ENGINE
+# ============================================================
 
 engine = create_engine(
 
@@ -20,16 +29,24 @@ engine = create_engine(
 )
 
 
+# ============================================================
+# SESSION
+# ============================================================
+
 SessionLocal = sessionmaker(
 
     bind=engine,
 
-    autoflush=False,
-
     autocommit=False,
+
+    autoflush=False,
 
 )
 
+
+# ============================================================
+# INIT DATABASE
+# ============================================================
 
 def init_db():
 

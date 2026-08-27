@@ -69,12 +69,23 @@ from app.handlers.history import (
     expense_edit_handler,
     edit_field_handler,
     edit_cancel_handler,
+    edit_expense_text,
 
     delete_expense_confirmation_handler,
     delete_expense_handler,
     delete_expense_cancel_handler,
+)
 
-    edit_expense_text,
+
+# ============================================================
+# BUDGET
+# ============================================================
+
+from app.handlers.budget import (
+    budget_command,
+    budget_set_handler,
+    budget_edit_handler,
+    budget_input,
 )
 
 
@@ -86,19 +97,47 @@ from database.db import init_db
 
 
 # ============================================================
-# EDIT TEXT ROUTER
+# TEXT ROUTER
 # ============================================================
 
-async def edit_text_router(
+async def text_router(
     update: Update,
     context,
 ):
+    """
+    Mengatur pesan text berdasarkan state user.
 
-    editing_expense = context.user_data.get(
+    Prioritas:
+    1. Input budget
+    2. Edit transaksi tersimpan
+    3. Edit receipt
+    4. Input transaksi manual
+    """
+
+    # ========================================================
+    # BUDGET INPUT
+    # ========================================================
+
+    if context.user_data.get(
+        "budget_input_mode"
+    ):
+
+        handled = await budget_input(
+            update,
+            context,
+        )
+
+        if handled:
+
+            return
+
+    # ========================================================
+    # SAVED EXPENSE EDIT
+    # ========================================================
+
+    if context.user_data.get(
         "editing_expense_field"
-    )
-
-    if editing_expense:
+    ):
 
         handled = await edit_expense_text(
             update,
@@ -108,6 +147,29 @@ async def edit_text_router(
         if handled:
 
             return
+
+    # ========================================================
+    # RECEIPT EDIT
+    # ========================================================
+
+    receipt_edit_state = (
+        context.user_data.get(
+            "receipt_edit_field"
+        )
+    )
+
+    if receipt_edit_state:
+
+        await receipt_edit_text(
+            update,
+            context,
+        )
+
+        return
+
+    # ========================================================
+    # MANUAL EXPENSE
+    # ========================================================
 
     await expense_message(
         update,
@@ -180,6 +242,25 @@ def main():
             "tanggal",
             date_report,
         )
+    )
+
+    # ========================================================
+    # BUDGET
+    # ========================================================
+
+    application.add_handler(
+        CommandHandler(
+            "budget",
+            budget_command,
+        )
+    )
+
+    application.add_handler(
+        budget_set_handler
+    )
+
+    application.add_handler(
+        budget_edit_handler
     )
 
     # ========================================================
@@ -269,24 +350,19 @@ def main():
     )
 
     # ========================================================
-    # TEXT ROUTER
-    #
-    # Menangani:
-    # - edit transaksi tersimpan
-    # - edit receipt pending
-    # - input expense manual
+    # ALL TEXT INPUT
     # ========================================================
 
     application.add_handler(
         MessageHandler(
             filters.TEXT
             & ~filters.COMMAND,
-            edit_text_router,
+            text_router,
         )
     )
 
     # ========================================================
-    # RUN BOT
+    # RUN
     # ========================================================
 
     print(

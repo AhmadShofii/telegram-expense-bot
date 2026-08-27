@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Date,
@@ -6,6 +6,8 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
+    UniqueConstraint,
 )
 
 from sqlalchemy.orm import (
@@ -15,6 +17,10 @@ from sqlalchemy.orm import (
     relationship,
 )
 
+
+# ============================================================
+# BASE
+# ============================================================
 
 class Base(DeclarativeBase):
     pass
@@ -37,11 +43,7 @@ class Expense(Base):
     user_id: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-    )
-
-    description: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
+        index=True,
     )
 
     amount: Mapped[int] = mapped_column(
@@ -50,25 +52,32 @@ class Expense(Base):
     )
 
     category: Mapped[str] = mapped_column(
-        String(100),
+        String(50),
         nullable=False,
         default="Lainnya",
     )
 
-    # Tanggal transaksi dari struk
-    expense_date: Mapped[datetime | None] = mapped_column(
-        Date,
-        nullable=True,
-    )
-
-    # Waktu data dimasukkan ke sistem
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
+    description: Mapped[str] = mapped_column(
+        String(255),
         nullable=False,
     )
 
-    # Relasi ke item
+    expense_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+        default=date.today,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now,
+    )
+
+    # --------------------------------------------------------
+    # RELATIONSHIP
+    # --------------------------------------------------------
+
     items: Mapped[list["ExpenseItem"]] = relationship(
         "ExpenseItem",
         back_populates="expense",
@@ -91,11 +100,13 @@ class ExpenseItem(Base):
     )
 
     expense_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey(
             "expenses.id",
             ondelete="CASCADE",
         ),
         nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
@@ -112,9 +123,82 @@ class ExpenseItem(Base):
     amount: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
+        default=0,
     )
+
+    # --------------------------------------------------------
+    # RELATIONSHIP
+    # --------------------------------------------------------
 
     expense: Mapped["Expense"] = relationship(
         "Expense",
         back_populates="items",
+    )
+
+
+# ============================================================
+# BUDGET
+# ============================================================
+
+class Budget(Base):
+
+    __tablename__ = "budgets"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        index=True,
+    )
+
+    year: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    month: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    amount: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now,
+        onupdate=datetime.now,
+    )
+
+    # --------------------------------------------------------
+    # UNIQUE BUDGET
+    # --------------------------------------------------------
+    #
+    # Satu user hanya boleh punya satu budget
+    # untuk satu bulan dan tahun.
+    #
+
+    __table_args__ = (
+
+        UniqueConstraint(
+            "user_id",
+            "year",
+            "month",
+            name="uq_budget_user_year_month",
+        ),
+
     )
