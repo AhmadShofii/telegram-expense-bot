@@ -18,27 +18,33 @@ from app.handlers.expense import (
 from app.handlers.report import (
     daily_report,
     monthly_report,
+    expense_summary,
 )
 
 from database.db import init_db
 
 
 def main():
-    # Inisialisasi database
+    # ==========================================
+    # INISIALISASI DATABASE
+    # ==========================================
+
     init_db()
 
-    # Membuat aplikasi Telegram
+    # ==========================================
+    # MEMBUAT APLIKASI TELEGRAM
+    # ==========================================
+
     application = (
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
         .build()
     )
 
-    # =========================
-    # COMMAND HANDLERS
-    # =========================
+    # ==========================================
+    # COMMAND /start
+    # ==========================================
 
-    # /start
     application.add_handler(
         CommandHandler(
             "start",
@@ -46,7 +52,10 @@ def main():
         )
     )
 
-    # /hari
+    # ==========================================
+    # COMMAND /hari
+    # ==========================================
+
     application.add_handler(
         CommandHandler(
             "hari",
@@ -54,7 +63,10 @@ def main():
         )
     )
 
-    # /bulan
+    # ==========================================
+    # COMMAND /bulan
+    # ==========================================
+
     application.add_handler(
         CommandHandler(
             "bulan",
@@ -62,11 +74,21 @@ def main():
         )
     )
 
-    # =========================
-    # MESSAGE HANDLERS
-    # =========================
+    # ==========================================
+    # COMMAND /rekap
+    # ==========================================
 
-    # Pesan teks untuk mencatat pengeluaran
+    application.add_handler(
+        CommandHandler(
+            "rekap",
+            expense_summary,
+        )
+    )
+
+    # ==========================================
+    # PESAN TEKS
+    # ==========================================
+
     application.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -74,16 +96,22 @@ def main():
         )
     )
 
-    # Tombol Simpan / Batal
+    # ==========================================
+    # CALLBACK BUTTON
+    # ==========================================
+
     application.add_handler(
         expense_callback_handler
     )
+
+    # ==========================================
+    # RUN BOT
+    # ==========================================
 
     print(
         "🤖 Expense Bot sedang berjalan..."
     )
 
-    # Menjalankan bot
     application.run_polling(
         allowed_updates=Update.ALL_TYPES
     )
