@@ -1,4 +1,9 @@
-from telegram import Update
+from telegram import (
+    BotCommand,
+    BotCommandScopeAllPrivateChats,
+    MenuButtonCommands,
+    Update,
+)
 
 from telegram.ext import (
     Application,
@@ -62,6 +67,17 @@ from app.handlers.export import (
 
 
 # ============================================================
+# HELP / MENU
+# ============================================================
+
+from app.handlers.help import (
+    menu_command,
+    bantuan_command,
+    help_callback_handler,
+)
+
+
+# ============================================================
 # RECEIPT
 # ============================================================
 
@@ -114,6 +130,159 @@ from database.db import init_db
 
 
 # ============================================================
+# TELEGRAM COMMAND MENU
+# ============================================================
+
+async def post_init(
+    application: Application,
+):
+    """
+    Mendaftarkan command bot ke Telegram
+    dan mengaktifkan tombol Menu.
+    """
+
+    commands = [
+
+        BotCommand(
+            "start",
+            "Mulai menggunakan bot",
+        ),
+
+        BotCommand(
+            "menu",
+            "Tampilkan menu utama",
+        ),
+
+        BotCommand(
+            "bantuan",
+            "Panduan penggunaan bot",
+        ),
+
+        BotCommand(
+            "riwayat",
+            "Lihat riwayat pengeluaran",
+        ),
+
+        BotCommand(
+            "hari",
+            "Laporan pengeluaran hari ini",
+        ),
+
+        BotCommand(
+            "tanggal",
+            "Laporan berdasarkan tanggal",
+        ),
+
+        BotCommand(
+            "bulan",
+            "Laporan pengeluaran bulan ini",
+        ),
+
+        BotCommand(
+            "rekap",
+            "Rekap pengeluaran bulan ini",
+        ),
+
+        BotCommand(
+            "budget",
+            "Lihat dan kelola budget",
+        ),
+
+        BotCommand(
+            "statistik",
+            "Lihat statistik pengeluaran",
+        ),
+
+        BotCommand(
+            "export",
+            "Export laporan ke CSV",
+        ),
+    ]
+
+    try:
+
+        # ====================================================
+        # SET COMMAND UNTUK PRIVATE CHAT
+        # ====================================================
+
+        await application.bot.set_my_commands(
+            commands=commands,
+            scope=BotCommandScopeAllPrivateChats(),
+        )
+
+        # ====================================================
+        # SET DEFAULT MENU BUTTON
+        # ====================================================
+
+        await application.bot.set_chat_menu_button(
+            menu_button=MenuButtonCommands()
+        )
+
+        # ====================================================
+        # VERIFY COMMAND
+        # ====================================================
+
+        registered_commands = (
+            await application.bot.get_my_commands(
+                scope=BotCommandScopeAllPrivateChats()
+            )
+        )
+
+        print(
+            "========================================"
+        )
+
+        print(
+            "✅ Telegram command menu berhasil diatur."
+        )
+
+        print(
+            "========================================"
+        )
+
+        print(
+            "📋 Commands yang terdaftar:"
+        )
+
+        for command in registered_commands:
+
+            print(
+                f"   /{command.command} "
+                f"- {command.description}"
+            )
+
+        print(
+            "========================================"
+        )
+
+        print(
+            "✅ Menu Button Telegram berhasil diatur."
+        )
+
+        print(
+            "========================================"
+        )
+
+    except Exception as error:
+
+        print(
+            "========================================"
+        )
+
+        print(
+            "❌ Gagal mengatur Telegram command menu:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        print(
+            "========================================"
+        )
+
+
+# ============================================================
 # TEXT ROUTER
 # ============================================================
 
@@ -121,7 +290,6 @@ async def text_router(
     update: Update,
     context,
 ):
-
     """
     Mengatur pesan text berdasarkan state user.
 
@@ -147,7 +315,6 @@ async def text_router(
         )
 
         if handled:
-
             return
 
     # ========================================================
@@ -164,7 +331,6 @@ async def text_router(
         )
 
         if handled:
-
             return
 
     # ========================================================
@@ -173,7 +339,7 @@ async def text_router(
 
     receipt_edit_state = (
         context.user_data.get(
-            "editing_receipt_field"
+            "receipt_edit_field"
         )
     )
 
@@ -217,6 +383,9 @@ def main():
         .token(
             TELEGRAM_BOT_TOKEN
         )
+        .post_init(
+            post_init
+        )
         .build()
     )
 
@@ -228,6 +397,28 @@ def main():
         CommandHandler(
             "start",
             start_command,
+        )
+    )
+
+    # ========================================================
+    # MENU
+    # ========================================================
+
+    application.add_handler(
+        CommandHandler(
+            "menu",
+            menu_command,
+        )
+    )
+
+    # ========================================================
+    # BANTUAN
+    # ========================================================
+
+    application.add_handler(
+        CommandHandler(
+            "bantuan",
+            bantuan_command,
         )
     )
 
@@ -400,6 +591,14 @@ def main():
 
     application.add_handler(
         expense_callback_handler
+    )
+
+    # ========================================================
+    # HELP CALLBACK
+    # ========================================================
+
+    application.add_handler(
+        help_callback_handler
     )
 
     # ========================================================
