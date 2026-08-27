@@ -63,6 +63,8 @@ from app.handlers.receipt import (
 from app.handlers.history import (
     history_command,
     history_callback_handler,
+    history_detail_handler,
+    history_back_handler,
     delete_expense_confirmation_handler,
     delete_expense_handler,
     delete_expense_cancel_handler,
@@ -112,7 +114,7 @@ def main():
     )
 
     # ========================================================
-    # REPORT - HARI
+    # REPORT
     # ========================================================
 
     application.add_handler(
@@ -122,10 +124,6 @@ def main():
         )
     )
 
-    # ========================================================
-    # REPORT - BULAN
-    # ========================================================
-
     application.add_handler(
         CommandHandler(
             "bulan",
@@ -133,20 +131,12 @@ def main():
         )
     )
 
-    # ========================================================
-    # REPORT - REKAP
-    # ========================================================
-
     application.add_handler(
         CommandHandler(
             "rekap",
             expense_summary,
         )
     )
-
-    # ========================================================
-    # REPORT - TANGGAL
-    # ========================================================
 
     application.add_handler(
         CommandHandler(
@@ -166,33 +156,29 @@ def main():
         )
     )
 
-    # ========================================================
-    # HISTORY PAGINATION
-    # ========================================================
-
     application.add_handler(
         history_callback_handler
     )
 
+    application.add_handler(
+        history_detail_handler
+    )
+
+    application.add_handler(
+        history_back_handler
+    )
+
     # ========================================================
-    # DELETE CONFIRMATION
+    # DELETE
     # ========================================================
 
     application.add_handler(
         delete_expense_confirmation_handler
     )
 
-    # ========================================================
-    # DELETE EXPENSE
-    # ========================================================
-
     application.add_handler(
         delete_expense_handler
     )
-
-    # ========================================================
-    # DELETE CANCEL
-    # ========================================================
 
     application.add_handler(
         delete_expense_cancel_handler
@@ -225,17 +211,9 @@ def main():
         receipt_edit_callback_handler
     )
 
-    # ========================================================
-    # RECEIPT EDIT FIELD
-    # ========================================================
-
     application.add_handler(
         receipt_edit_field_callback_handler
     )
-
-    # ========================================================
-    # RECEIPT EDIT BACK
-    # ========================================================
 
     application.add_handler(
         receipt_edit_back_callback_handler
@@ -274,7 +252,7 @@ def main():
     )
 
     # ========================================================
-    # RUN
+    # RUN BOT
     # ========================================================
 
     print(
