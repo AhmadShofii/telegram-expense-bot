@@ -15,7 +15,27 @@ from database.db import SessionLocal
 from database.models import Expense
 
 
-def parse_expense(text: str):
+# ============================================================
+# FORMAT RUPIAH
+# ============================================================
+
+def format_rupiah(
+    amount: int,
+) -> str:
+
+    return f"Rp{amount:,}".replace(
+        ",",
+        ".",
+    )
+
+
+# ============================================================
+# PARSE EXPENSE
+# ============================================================
+
+def parse_expense(
+    text: str,
+):
     """
     Format yang didukung:
 
@@ -28,9 +48,9 @@ def parse_expense(text: str):
 
     text = text.strip()
 
-    # ==================================
-    # FORMAT: 25 RIBU / 25 RB
-    # ==================================
+    # ==========================================
+    # FORMAT RIBU
+    # ==========================================
 
     match = re.search(
         r"(\d+(?:[.,]\d+)?)\s*(ribu|rb)",
@@ -39,16 +59,20 @@ def parse_expense(text: str):
     )
 
     if match:
+
         number = match.group(1).replace(
             ",",
             ".",
         )
 
         try:
+
             amount = int(
                 float(number) * 1000
             )
+
         except ValueError:
+
             return None
 
         description = (
@@ -59,11 +83,14 @@ def parse_expense(text: str):
         if not description:
             return None
 
-        return description, amount
+        return (
+            description,
+            amount,
+        )
 
-    # ==================================
-    # FORMAT ANGKA BIASA
-    # ==================================
+    # ==========================================
+    # FORMAT ANGKA
+    # ==========================================
 
     match = re.search(
         r"(\d[\d.,]*)$",
@@ -75,7 +102,6 @@ def parse_expense(text: str):
 
     raw_amount = match.group(1)
 
-    # Hilangkan titik dan koma
     raw_amount = re.sub(
         r"[.,]",
         "",
@@ -83,8 +109,13 @@ def parse_expense(text: str):
     )
 
     try:
-        amount = int(raw_amount)
+
+        amount = int(
+            raw_amount
+        )
+
     except ValueError:
+
         return None
 
     description = (
@@ -95,16 +126,19 @@ def parse_expense(text: str):
     if not description:
         return None
 
-    return description, amount
+    return (
+        description,
+        amount,
+    )
 
+
+# ============================================================
+# DETECT CATEGORY
+# ============================================================
 
 def detect_category(
     description: str,
 ) -> str:
-    """
-    Menentukan kategori berdasarkan
-    keyword sederhana.
-    """
 
     text = description.lower()
 
@@ -116,22 +150,26 @@ def detect_category(
         "restaurant",
         "cafe",
         "kopi",
+        "coffee",
         "nasi",
         "ayam",
         "bakso",
         "mie",
+        "food",
     ]
 
     transport_keywords = [
         "bensin",
         "pertalite",
         "pertamax",
+        "shell",
         "grab",
         "gojek",
         "ojek",
         "taxi",
         "tol",
         "parkir",
+        "parking",
     ]
 
     shopping_keywords = [
@@ -141,6 +179,7 @@ def detect_category(
         "alfamart",
         "shopee",
         "tokopedia",
+        "minimarket",
     ]
 
     if any(
@@ -164,26 +203,14 @@ def detect_category(
     return "Lainnya"
 
 
-def format_rupiah(
-    amount: int,
-) -> str:
-    return f"Rp{amount:,}".replace(
-        ",",
-        ".",
-    )
-
+# ============================================================
+# INPUT MANUAL
+# ============================================================
 
 async def expense_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    """
-    Menerima pesan:
-
-    Makan siang 25000
-    Bensin 50 ribu
-    Kopi 15000
-    """
 
     if not update.message:
         return
@@ -196,14 +223,17 @@ async def expense_message(
     )
 
     if not result:
+
         await update.message.reply_text(
             "❌ Format pengeluaran "
             "belum dikenali.\n\n"
+
             "Contoh:\n"
             "• Makan siang 25000\n"
             "• Bensin 50 ribu\n"
             "• Kopi 15000"
         )
+
         return
 
     description, amount = result
@@ -214,28 +244,44 @@ async def expense_message(
 
     user_id = update.effective_user.id
 
-    # Simpan sementara
-    # sebelum konfirmasi
+    # ==========================================
+    # SIMPAN DATA SEMENTARA
+    # ==========================================
+
     context.user_data[
         "pending_expense"
     ] = {
+
         "user_id": user_id,
+
         "description": description,
+
         "amount": amount,
+
         "category": category,
+
     }
 
+    # ==========================================
+    # BUTTON
+    # ==========================================
+
     keyboard = [
+
         [
+
             InlineKeyboardButton(
                 "✅ Simpan",
                 callback_data="expense_save",
             ),
+
             InlineKeyboardButton(
                 "❌ Batal",
                 callback_data="expense_cancel",
             ),
+
         ]
+
     ]
 
     reply_markup = InlineKeyboardMarkup(
@@ -243,28 +289,33 @@ async def expense_message(
     )
 
     await update.message.reply_text(
+
         "💰 *Pengeluaran ditemukan*\n\n"
+
         f"📝 Deskripsi: {description}\n"
+
         f"💵 Nominal: "
         f"{format_rupiah(amount)}\n"
+
         f"🏷️ Kategori: {category}\n\n"
+
         "Apakah ingin menyimpan "
         "transaksi ini?",
+
         reply_markup=reply_markup,
+
         parse_mode="Markdown",
     )
 
+
+# ============================================================
+# CALLBACK
+# ============================================================
 
 async def expense_callback(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ):
-    """
-    Menangani tombol:
-
-    Simpan
-    Batal
-    """
 
     query = update.callback_query
 
@@ -277,9 +328,9 @@ async def expense_callback(
         "pending_expense"
     )
 
-    # ==================================
+    # ==========================================
     # BATAL
-    # ==================================
+    # ==========================================
 
     if query.data == "expense_cancel":
 
@@ -294,29 +345,43 @@ async def expense_callback(
 
         return
 
-    # ==================================
+    # ==========================================
     # SIMPAN
-    # ==================================
+    # ==========================================
 
     if query.data == "expense_save":
 
         if not pending:
+
             await query.edit_message_text(
                 "❌ Data pengeluaran "
                 "sudah tidak tersedia."
             )
+
             return
 
         db = SessionLocal()
 
         try:
+
             expense = Expense(
-                user_id=pending["user_id"],
+
+                user_id=pending[
+                    "user_id"
+                ],
+
                 description=pending[
                     "description"
                 ],
-                amount=pending["amount"],
-                category=pending["category"],
+
+                amount=pending[
+                    "amount"
+                ],
+
+                category=pending[
+                    "category"
+                ],
+
             )
 
             db.add(expense)
@@ -326,16 +391,25 @@ async def expense_callback(
             db.refresh(expense)
 
             await query.edit_message_text(
+
                 "✅ *Pengeluaran "
                 "berhasil disimpan!*\n\n"
+
                 f"📝 {expense.description}\n"
+
                 f"💵 "
                 f"{format_rupiah(expense.amount)}\n"
+
                 f"🏷️ {expense.category}",
+
                 parse_mode="Markdown",
             )
 
-        except Exception:
+        except Exception as error:
+
+            print(
+                f"Expense save error: {error}"
+            )
 
             db.rollback()
 
@@ -354,6 +428,10 @@ async def expense_callback(
                 None,
             )
 
+
+# ============================================================
+# CALLBACK HANDLER
+# ============================================================
 
 expense_callback_handler = (
     CallbackQueryHandler(

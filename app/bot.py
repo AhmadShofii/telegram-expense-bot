@@ -21,18 +21,23 @@ from app.handlers.report import (
     expense_summary,
 )
 
+from app.handlers.receipt import (
+    receipt_photo,
+    receipt_callback_handler,
+)
+
 from database.db import init_db
 
 
 def main():
     # ==========================================
-    # INISIALISASI DATABASE
+    # DATABASE
     # ==========================================
 
     init_db()
 
     # ==========================================
-    # MEMBUAT APLIKASI TELEGRAM
+    # TELEGRAM APPLICATION
     # ==========================================
 
     application = (
@@ -86,6 +91,33 @@ def main():
     )
 
     # ==========================================
+    # FOTO STRUK
+    # ==========================================
+
+    application.add_handler(
+        MessageHandler(
+            filters.PHOTO,
+            receipt_photo,
+        )
+    )
+
+    # ==========================================
+    # CALLBACK STRUK
+    # ==========================================
+
+    application.add_handler(
+        receipt_callback_handler
+    )
+
+    # ==========================================
+    # CALLBACK EXPENSE MANUAL
+    # ==========================================
+
+    application.add_handler(
+        expense_callback_handler
+    )
+
+    # ==========================================
     # PESAN TEKS
     # ==========================================
 
@@ -94,14 +126,6 @@ def main():
             filters.TEXT & ~filters.COMMAND,
             expense_message,
         )
-    )
-
-    # ==========================================
-    # CALLBACK BUTTON
-    # ==========================================
-
-    application.add_handler(
-        expense_callback_handler
     )
 
     # ==========================================
