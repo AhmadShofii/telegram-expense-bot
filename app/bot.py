@@ -9,14 +9,29 @@ from telegram.ext import (
 
 from app.config import TELEGRAM_BOT_TOKEN
 
+
+# ============================================================
+# START
+# ============================================================
+
 from app.handlers.start import (
     start_command,
 )
+
+
+# ============================================================
+# MANUAL EXPENSE
+# ============================================================
 
 from app.handlers.expense import (
     expense_message,
     expense_callback_handler,
 )
+
+
+# ============================================================
+# REPORT
+# ============================================================
 
 from app.handlers.report import (
     daily_report,
@@ -25,6 +40,11 @@ from app.handlers.report import (
     date_report,
     month_report,
 )
+
+
+# ============================================================
+# RECEIPT
+# ============================================================
 
 from app.handlers.receipt import (
     receipt_photo,
@@ -35,29 +55,50 @@ from app.handlers.receipt import (
     receipt_edit_text,
 )
 
+
+# ============================================================
+# HISTORY
+# ============================================================
+
+from app.handlers.history import (
+    history_command,
+    history_callback_handler,
+)
+
+
+# ============================================================
+# DATABASE
+# ============================================================
+
 from database.db import init_db
 
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
 
     # ========================================================
-    # DATABASE
+    # INITIALIZE DATABASE
     # ========================================================
 
     init_db()
 
     # ========================================================
-    # APPLICATION
+    # CREATE APPLICATION
     # ========================================================
 
     application = (
         Application.builder()
-        .token(TELEGRAM_BOT_TOKEN)
+        .token(
+            TELEGRAM_BOT_TOKEN
+        )
         .build()
     )
 
     # ========================================================
-    # START
+    # /START
     # ========================================================
 
     application.add_handler(
@@ -68,7 +109,7 @@ def main():
     )
 
     # ========================================================
-    # REPORT
+    # /HARI
     # ========================================================
 
     application.add_handler(
@@ -78,12 +119,20 @@ def main():
         )
     )
 
+    # ========================================================
+    # /BULAN
+    # ========================================================
+
     application.add_handler(
         CommandHandler(
             "bulan",
             month_report,
         )
     )
+
+    # ========================================================
+    # /REKAP
+    # ========================================================
 
     application.add_handler(
         CommandHandler(
@@ -92,11 +141,34 @@ def main():
         )
     )
 
+    # ========================================================
+    # /TANGGAL
+    # ========================================================
+
     application.add_handler(
         CommandHandler(
             "tanggal",
             date_report,
         )
+    )
+
+    # ========================================================
+    # /RIWAYAT
+    # ========================================================
+
+    application.add_handler(
+        CommandHandler(
+            "riwayat",
+            history_command,
+        )
+    )
+
+    # ========================================================
+    # HISTORY PAGINATION
+    # ========================================================
+
+    application.add_handler(
+        history_callback_handler
     )
 
     # ========================================================
@@ -111,20 +183,32 @@ def main():
     )
 
     # ========================================================
-    # RECEIPT CALLBACK
+    # RECEIPT SAVE / CANCEL
     # ========================================================
 
     application.add_handler(
         receipt_callback_handler
     )
 
+    # ========================================================
+    # RECEIPT EDIT MENU
+    # ========================================================
+
     application.add_handler(
         receipt_edit_callback_handler
     )
 
+    # ========================================================
+    # RECEIPT EDIT FIELD
+    # ========================================================
+
     application.add_handler(
         receipt_edit_field_callback_handler
     )
+
+    # ========================================================
+    # RECEIPT EDIT BACK
+    # ========================================================
 
     application.add_handler(
         receipt_edit_back_callback_handler
@@ -133,34 +217,39 @@ def main():
     # ========================================================
     # RECEIPT EDIT TEXT
     #
-    # Harus diletakkan sebelum expense_message.
-    # Jika bukan mode edit, receipt_edit_text langsung return.
+    # Harus sebelum expense_message.
     # ========================================================
 
     application.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
+            filters.TEXT
+            & ~filters.COMMAND,
             receipt_edit_text,
         )
     )
 
     # ========================================================
-    # MANUAL EXPENSE
+    # EXPENSE CALLBACK
     # ========================================================
 
     application.add_handler(
         expense_callback_handler
     )
 
+    # ========================================================
+    # MANUAL EXPENSE TEXT
+    # ========================================================
+
     application.add_handler(
         MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
+            filters.TEXT
+            & ~filters.COMMAND,
             expense_message,
         )
     )
 
     # ========================================================
-    # RUN BOT
+    # START BOT
     # ========================================================
 
     print(
@@ -172,5 +261,10 @@ def main():
     )
 
 
+# ============================================================
+# ENTRY POINT
+# ============================================================
+
 if __name__ == "__main__":
+
     main()
