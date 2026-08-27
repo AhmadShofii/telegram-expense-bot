@@ -1,4 +1,5 @@
 import re
+
 from datetime import date
 
 from telegram import (
@@ -13,22 +14,36 @@ from telegram.ext import (
 )
 
 from database.db import SessionLocal
+
 from database.models import Expense
+
+from app.handlers.budget import (
+    send_budget_warning,
+)
 
 
 # ============================================================
 # FORMAT RUPIAH
 # ============================================================
 
-def format_rupiah(amount: int) -> str:
-    return f"Rp{amount:,}".replace(",", ".")
+def format_rupiah(
+    amount: int,
+) -> str:
+
+    return f"Rp{amount:,}".replace(
+        ",",
+        ".",
+    )
 
 
 # ============================================================
 # PARSE EXPENSE
 # ============================================================
 
-def parse_expense(text: str):
+def parse_expense(
+    text: str,
+):
+
     """
     Format yang didukung:
 
@@ -53,9 +68,12 @@ def parse_expense(text: str):
 
     if match:
 
-        number = match.group(1).replace(
-            ",",
-            ".",
+        number = (
+            match.group(1)
+            .replace(
+                ",",
+                ".",
+            )
         )
 
         try:
@@ -69,12 +87,14 @@ def parse_expense(text: str):
             return None
 
         description = (
+
             text[:match.start()]
+
             + text[match.end():]
+
         ).strip()
 
         if not description:
-
             return None
 
         return (
@@ -92,7 +112,6 @@ def parse_expense(text: str):
     )
 
     if not match:
-
         return None
 
     raw_amount = match.group(1)
@@ -119,7 +138,6 @@ def parse_expense(text: str):
     )
 
     if not description:
-
         return None
 
     return (
@@ -212,11 +230,9 @@ async def expense_message(
 ):
 
     if not update.message:
-
         return
 
     if not update.message.text:
-
         return
 
     result = parse_expense(
@@ -231,8 +247,11 @@ async def expense_message(
             "belum dikenali.\n\n"
 
             "Contoh:\n"
+
             "• Makan siang 25000\n"
+
             "• Bensin 50 ribu\n"
+
             "• Kopi 15000"
 
         )
@@ -245,7 +264,9 @@ async def expense_message(
         description
     )
 
-    user_id = update.effective_user.id
+    user_id = (
+        update.effective_user.id
+    )
 
     # ========================================================
     # TANGGAL MANUAL
@@ -295,8 +316,10 @@ async def expense_message(
 
     ]
 
-    reply_markup = InlineKeyboardMarkup(
-        keyboard
+    reply_markup = (
+        InlineKeyboardMarkup(
+            keyboard
+        )
     )
 
     await update.message.reply_text(
@@ -335,7 +358,6 @@ async def expense_callback(
     query = update.callback_query
 
     if not query:
-
         return
 
     await query.answer()
@@ -356,7 +378,9 @@ async def expense_callback(
         )
 
         await query.edit_message_text(
+
             "❌ Pengeluaran dibatalkan."
+
         )
 
         return
@@ -416,6 +440,10 @@ async def expense_callback(
                 expense
             )
 
+            # =================================================
+            # SUCCESS MESSAGE
+            # =================================================
+
             await query.edit_message_text(
 
                 "✅ *Pengeluaran "
@@ -433,6 +461,14 @@ async def expense_callback(
 
                 parse_mode="Markdown",
 
+            )
+
+            # =================================================
+            # BUDGET WARNING
+            # =================================================
+
+            await send_budget_warning(
+                update
             )
 
         except Exception as error:
@@ -467,7 +503,10 @@ async def expense_callback(
 
 expense_callback_handler = (
     CallbackQueryHandler(
+
         expense_callback,
+
         pattern=r"^expense_(save|cancel)$",
+
     )
 )
