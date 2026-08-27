@@ -1,4 +1,5 @@
 import re
+from datetime import date
 
 from telegram import (
     InlineKeyboardButton,
@@ -19,38 +20,30 @@ from database.models import Expense
 # FORMAT RUPIAH
 # ============================================================
 
-def format_rupiah(
-    amount: int,
-) -> str:
-
-    return f"Rp{amount:,}".replace(
-        ",",
-        ".",
-    )
+def format_rupiah(amount: int) -> str:
+    return f"Rp{amount:,}".replace(",", ".")
 
 
 # ============================================================
 # PARSE EXPENSE
 # ============================================================
 
-def parse_expense(
-    text: str,
-):
+def parse_expense(text: str):
     """
     Format yang didukung:
 
     Makan siang 25000
     Makan siang 25.000
     Makan siang 25,000
-    Bensin 25 ribu
-    Bensin 25 rb
+    Bensin 50 ribu
+    Bensin 50 rb
     """
 
     text = text.strip()
 
-    # ==========================================
-    # FORMAT RIBU
-    # ==========================================
+    # ========================================================
+    # FORMAT RIBU / RB
+    # ========================================================
 
     match = re.search(
         r"(\d+(?:[.,]\d+)?)\s*(ribu|rb)",
@@ -81,6 +74,7 @@ def parse_expense(
         ).strip()
 
         if not description:
+
             return None
 
         return (
@@ -88,9 +82,9 @@ def parse_expense(
             amount,
         )
 
-    # ==========================================
+    # ========================================================
     # FORMAT ANGKA
-    # ==========================================
+    # ========================================================
 
     match = re.search(
         r"(\d[\d.,]*)$",
@@ -98,6 +92,7 @@ def parse_expense(
     )
 
     if not match:
+
         return None
 
     raw_amount = match.group(1)
@@ -124,6 +119,7 @@ def parse_expense(
     )
 
     if not description:
+
         return None
 
     return (
@@ -186,18 +182,21 @@ def detect_category(
         keyword in text
         for keyword in food_keywords
     ):
+
         return "Makanan"
 
     if any(
         keyword in text
         for keyword in transport_keywords
     ):
+
         return "Transportasi"
 
     if any(
         keyword in text
         for keyword in shopping_keywords
     ):
+
         return "Belanja"
 
     return "Lainnya"
@@ -213,9 +212,11 @@ async def expense_message(
 ):
 
     if not update.message:
+
         return
 
     if not update.message.text:
+
         return
 
     result = parse_expense(
@@ -225,6 +226,7 @@ async def expense_message(
     if not result:
 
         await update.message.reply_text(
+
             "❌ Format pengeluaran "
             "belum dikenali.\n\n"
 
@@ -232,6 +234,7 @@ async def expense_message(
             "• Makan siang 25000\n"
             "• Bensin 50 ribu\n"
             "• Kopi 15000"
+
         )
 
         return
@@ -244,9 +247,15 @@ async def expense_message(
 
     user_id = update.effective_user.id
 
-    # ==========================================
-    # SIMPAN DATA SEMENTARA
-    # ==========================================
+    # ========================================================
+    # TANGGAL MANUAL
+    # ========================================================
+
+    expense_date = date.today()
+
+    # ========================================================
+    # SIMPAN SEMENTARA
+    # ========================================================
 
     context.user_data[
         "pending_expense"
@@ -260,11 +269,13 @@ async def expense_message(
 
         "category": category,
 
+        "expense_date": expense_date,
+
     }
 
-    # ==========================================
+    # ========================================================
     # BUTTON
-    # ==========================================
+    # ========================================================
 
     keyboard = [
 
@@ -297,7 +308,10 @@ async def expense_message(
         f"💵 Nominal: "
         f"{format_rupiah(amount)}\n"
 
-        f"🏷️ Kategori: {category}\n\n"
+        f"🏷️ Kategori: {category}\n"
+
+        f"📅 Tanggal: "
+        f"{expense_date.strftime('%d-%m-%Y')}\n\n"
 
         "Apakah ingin menyimpan "
         "transaksi ini?",
@@ -305,6 +319,7 @@ async def expense_message(
         reply_markup=reply_markup,
 
         parse_mode="Markdown",
+
     )
 
 
@@ -320,6 +335,7 @@ async def expense_callback(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
@@ -328,9 +344,9 @@ async def expense_callback(
         "pending_expense"
     )
 
-    # ==========================================
+    # ========================================================
     # BATAL
-    # ==========================================
+    # ========================================================
 
     if query.data == "expense_cancel":
 
@@ -345,17 +361,19 @@ async def expense_callback(
 
         return
 
-    # ==========================================
+    # ========================================================
     # SIMPAN
-    # ==========================================
+    # ========================================================
 
     if query.data == "expense_save":
 
         if not pending:
 
             await query.edit_message_text(
+
                 "❌ Data pengeluaran "
                 "sudah tidak tersedia."
+
             )
 
             return
@@ -382,13 +400,21 @@ async def expense_callback(
                     "category"
                 ],
 
+                expense_date=pending[
+                    "expense_date"
+                ],
+
             )
 
-            db.add(expense)
+            db.add(
+                expense
+            )
 
             db.commit()
 
-            db.refresh(expense)
+            db.refresh(
+                expense
+            )
 
             await query.edit_message_text(
 
@@ -400,9 +426,13 @@ async def expense_callback(
                 f"💵 "
                 f"{format_rupiah(expense.amount)}\n"
 
-                f"🏷️ {expense.category}",
+                f"🏷️ {expense.category}\n"
+
+                f"📅 "
+                f"{expense.expense_date.strftime('%d-%m-%Y')}",
 
                 parse_mode="Markdown",
+
             )
 
         except Exception as error:
@@ -414,9 +444,11 @@ async def expense_callback(
             db.rollback()
 
             await query.edit_message_text(
+
                 "❌ Terjadi kesalahan "
                 "saat menyimpan "
                 "pengeluaran."
+
             )
 
         finally:
