@@ -4,7 +4,10 @@ from telegram import (
     Update,
 )
 
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 
 # ============================================================
@@ -40,50 +43,82 @@ pengeluaran kamu dengan mudah.
 📝 Kirim teks pengeluaran
 untuk mencatat transaksi manual.
 
+Contoh:
+
+`Makan siang 25000`
+
 📷 Kirim foto struk
-untuk menggunakan OCR.
+untuk menggunakan OCR dan
+membaca data transaksi secara otomatis.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📋 *RIWAYAT*
 
 /riwayat
-Melihat daftar pengeluaran.
+
+Melihat daftar pengeluaran
+yang sudah tersimpan.
+
+Dari riwayat kamu dapat melihat
+detail, mengedit, atau menghapus
+transaksi.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📊 *LAPORAN*
 
 /hari
-Laporan pengeluaran hari ini.
+
+Melihat laporan pengeluaran
+hari ini.
 
 /tanggal
-Laporan berdasarkan tanggal.
+
+Melihat laporan berdasarkan
+tanggal.
 
 /bulan
-Laporan pengeluaran bulan ini.
+
+Melihat laporan pengeluaran
+bulan ini.
 
 /rekap
-Rekap pengeluaran bulan ini.
+
+Melihat rekap pengeluaran
+bulan berjalan.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 💵 *BUDGET*
 
 /budget
+
 Melihat dan mengelola budget
 bulan berjalan.
+
+Bot juga akan memberikan
+peringatan ketika penggunaan
+budget mendekati atau melewati
+batas yang ditentukan.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📈 *STATISTIK*
 
 /statistik
+
 Melihat statistik pengeluaran
 berdasarkan kategori.
 
-/statistik
-Kemudian tekan tombol
+Statistik dapat menampilkan:
+
+• Total pengeluaran
+• Pengeluaran berdasarkan kategori
+• Persentase kategori
+• Rata-rata pengeluaran
+
+Tekan tombol
 📈 *Lihat Grafik* untuk melihat
 grafik pengeluaran.
 
@@ -92,30 +127,66 @@ grafik pengeluaran.
 📤 *EXPORT*
 
 /export
-Export laporan pengeluaran
+
+Mengexport laporan pengeluaran
 bulan berjalan dalam format CSV.
+
+File dapat dibuka menggunakan
+Microsoft Excel atau aplikasi
+spreadsheet lainnya.
+
+━━━━━━━━━━━━━━━━━━━━
+
+🔔 *DAILY REMINDER*
+
+/reminder
+
+Mengatur pengingat pencatatan
+pengeluaran setiap hari.
+
+Tersedia pilihan waktu:
+
+• 07:00
+• 08:00
+• 09:00
+• 12:00
+• 18:00
+• 19:00
+• 20:00
+• 21:00
+
+Reminder dapat:
+
+⏰ Diaktifkan
+📋 Dilihat statusnya
+🔕 Dimatikan
 
 ━━━━━━━━━━━━━━━━━━━━
 
 ℹ️ *LAINNYA*
 
 /start
+
 Memulai bot.
 
 /menu
-Menampilkan menu bantuan.
+
+Menampilkan menu utama.
 
 /bantuan
+
 Menampilkan panduan penggunaan.
 
 ━━━━━━━━━━━━━━━━━━━━
 
-💡 *Tips*
+💡 *TIPS*
 
 • Catat pengeluaran segera setelah transaksi.
 • Gunakan foto struk untuk pencatatan otomatis.
+• Gunakan /budget untuk mengontrol pengeluaran.
 • Gunakan /statistik untuk melihat pola pengeluaran.
 • Gunakan /export untuk menyimpan laporan.
+• Aktifkan /reminder agar tidak lupa mencatat.
 """
 
 
@@ -132,6 +203,7 @@ def build_help_keyboard():
                 "💰 Budget",
                 callback_data="help_budget",
             ),
+
             InlineKeyboardButton(
                 "📈 Statistik",
                 callback_data="help_statistics",
@@ -143,9 +215,17 @@ def build_help_keyboard():
                 "📋 Riwayat",
                 callback_data="help_history",
             ),
+
             InlineKeyboardButton(
                 "📤 Export",
                 callback_data="help_export",
+            ),
+        ],
+
+        [
+            InlineKeyboardButton(
+                "🔔 Reminder",
+                callback_data="help_reminder",
             ),
         ],
 
@@ -173,7 +253,9 @@ async def menu_command(
 
         HELP_MESSAGE,
 
-        reply_markup=build_help_keyboard(),
+        reply_markup=(
+            build_help_keyboard()
+        ),
 
         parse_mode="Markdown",
 
@@ -197,7 +279,9 @@ async def bantuan_command(
 
         HELP_MESSAGE,
 
-        reply_markup=build_help_keyboard(),
+        reply_markup=(
+            build_help_keyboard()
+        ),
 
         parse_mode="Markdown",
 
@@ -231,11 +315,19 @@ async def help_callback(
 
             "💵 *BUDGET*\n\n"
 
-            "/budget\n"
-            "Melihat budget bulan berjalan.\n\n"
+            "/budget\n\n"
 
-            "Gunakan menu budget untuk "
-            "mengatur atau mengedit budget.",
+            "Melihat dan mengelola budget "
+            "bulan berjalan.\n\n"
+
+            "Budget dapat digunakan untuk "
+            "mengontrol jumlah pengeluaran "
+            "selama satu bulan.\n\n"
+
+            "Bot juga dapat memberikan "
+            "peringatan ketika penggunaan "
+            "budget mendekati atau melewati "
+            "batas.",
 
             parse_mode="Markdown",
 
@@ -253,13 +345,20 @@ async def help_callback(
 
             "📈 *STATISTIK*\n\n"
 
-            "/statistik\n"
-            "Melihat total pengeluaran, "
-            "kategori, persentase, dan "
-            "rata-rata pengeluaran.\n\n"
+            "/statistik\n\n"
+
+            "Melihat statistik pengeluaran "
+            "berdasarkan kategori.\n\n"
+
+            "Informasi yang tersedia:\n"
+
+            "• Total pengeluaran\n"
+            "• Kategori pengeluaran\n"
+            "• Persentase kategori\n"
+            "• Rata-rata pengeluaran\n\n"
 
             "Tekan tombol 📈 *Lihat Grafik* "
-            "untuk melihat grafik kategori.",
+            "untuk melihat grafik pengeluaran.",
 
             parse_mode="Markdown",
 
@@ -277,13 +376,16 @@ async def help_callback(
 
             "📋 *RIWAYAT*\n\n"
 
-            "/riwayat\n"
+            "/riwayat\n\n"
+
             "Melihat daftar transaksi "
             "yang sudah tersimpan.\n\n"
 
-            "Dari riwayat kamu dapat melihat "
-            "detail, mengedit, atau menghapus "
-            "transaksi.",
+            "Dari riwayat kamu dapat:\n\n"
+
+            "• Melihat detail transaksi\n"
+            "• Mengedit transaksi\n"
+            "• Menghapus transaksi",
 
             parse_mode="Markdown",
 
@@ -301,13 +403,54 @@ async def help_callback(
 
             "📤 *EXPORT*\n\n"
 
-            "/export\n"
+            "/export\n\n"
+
             "Membuat laporan pengeluaran "
             "bulan berjalan dalam format CSV.\n\n"
 
-            "File dapat dibuka menggunakan "
-            "Microsoft Excel atau aplikasi "
-            "spreadsheet lainnya.",
+            "File dapat dibuka menggunakan:\n\n"
+
+            "• Microsoft Excel\n"
+            "• Google Sheets\n"
+            "• Aplikasi spreadsheet lainnya",
+
+            parse_mode="Markdown",
+
+        )
+
+        return
+
+    # ========================================================
+    # REMINDER
+    # ========================================================
+
+    if query.data == "help_reminder":
+
+        await query.message.reply_text(
+
+            "🔔 *DAILY REMINDER*\n\n"
+
+            "/reminder\n\n"
+
+            "Mengatur pengingat pencatatan "
+            "pengeluaran setiap hari.\n\n"
+
+            "Pilihan waktu:\n\n"
+
+            "• 07:00\n"
+            "• 08:00\n"
+            "• 09:00\n"
+            "• 12:00\n"
+            "• 18:00\n"
+            "• 19:00\n"
+            "• 20:00\n"
+            "• 21:00\n\n"
+
+            "Reminder dapat:\n\n"
+
+            "⏰ Diaktifkan\n"
+            "📋 Dilihat statusnya\n"
+            "🔕 Dimatikan",
 
             parse_mode="Markdown",
 
@@ -320,15 +463,10 @@ async def help_callback(
 # CALLBACK HANDLER
 # ============================================================
 
-from telegram.ext import CallbackQueryHandler
+help_callback_handler = CallbackQueryHandler(
 
+    help_callback,
 
-help_callback_handler = (
-    CallbackQueryHandler(
+    pattern=r"^help_",
 
-        help_callback,
-
-        pattern=r"^help_",
-
-    )
 )

@@ -78,6 +78,20 @@ from app.handlers.help import (
 
 
 # ============================================================
+# REMINDER
+# ============================================================
+
+from app.handlers.reminder import (
+    reminder_command,
+    reminder_handler,
+    reminder_time_handler,
+    reminder_status_handler,
+    reminder_off_handler,
+    reminder_back_handler,
+)
+
+
+# ============================================================
 # RECEIPT
 # ============================================================
 
@@ -136,10 +150,6 @@ from database.db import init_db
 async def post_init(
     application: Application,
 ):
-    """
-    Mendaftarkan command bot ke Telegram
-    dan mengaktifkan tombol Menu.
-    """
 
     commands = [
 
@@ -197,35 +207,51 @@ async def post_init(
             "export",
             "Export laporan ke CSV",
         ),
+
+        BotCommand(
+            "reminder",
+            "Atur pengingat harian",
+        ),
     ]
 
     try:
 
         # ====================================================
-        # SET COMMAND UNTUK PRIVATE CHAT
+        # SET COMMANDS
         # ====================================================
 
         await application.bot.set_my_commands(
+
             commands=commands,
+
             scope=BotCommandScopeAllPrivateChats(),
+
         )
 
         # ====================================================
-        # SET DEFAULT MENU BUTTON
+        # SET MENU BUTTON
         # ====================================================
 
         await application.bot.set_chat_menu_button(
+
             menu_button=MenuButtonCommands()
+
         )
 
         # ====================================================
-        # VERIFY COMMAND
+        # VERIFY
         # ====================================================
 
         registered_commands = (
+
             await application.bot.get_my_commands(
-                scope=BotCommandScopeAllPrivateChats()
+
+                scope=(
+                    BotCommandScopeAllPrivateChats()
+                )
+
             )
+
         )
 
         print(
@@ -247,8 +273,10 @@ async def post_init(
         for command in registered_commands:
 
             print(
+
                 f"   /{command.command} "
                 f"- {command.description}"
+
             )
 
         print(
@@ -290,6 +318,7 @@ async def text_router(
     update: Update,
     context,
 ):
+
     """
     Mengatur pesan text berdasarkan state user.
 
@@ -310,11 +339,15 @@ async def text_router(
     ):
 
         handled = await budget_input(
+
             update,
+
             context,
+
         )
 
         if handled:
+
             return
 
     # ========================================================
@@ -326,11 +359,15 @@ async def text_router(
     ):
 
         handled = await edit_expense_text(
+
             update,
+
             context,
+
         )
 
         if handled:
+
             return
 
     # ========================================================
@@ -338,16 +375,23 @@ async def text_router(
     # ========================================================
 
     receipt_edit_state = (
+
         context.user_data.get(
+
             "receipt_edit_field"
+
         )
+
     )
 
     if receipt_edit_state:
 
         await receipt_edit_text(
+
             update,
+
             context,
+
         )
 
         return
@@ -357,8 +401,11 @@ async def text_router(
     # ========================================================
 
     await expense_message(
+
         update,
+
         context,
+
     )
 
 
@@ -379,14 +426,23 @@ def main():
     # ========================================================
 
     application = (
+
         Application.builder()
+
         .token(
+
             TELEGRAM_BOT_TOKEN
+
         )
+
         .post_init(
+
             post_init
+
         )
+
         .build()
+
     )
 
     # ========================================================
@@ -394,10 +450,15 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "start",
+
             start_command,
+
         )
+
     )
 
     # ========================================================
@@ -405,10 +466,15 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "menu",
+
             menu_command,
+
         )
+
     )
 
     # ========================================================
@@ -416,10 +482,15 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "bantuan",
+
             bantuan_command,
+
         )
+
     )
 
     # ========================================================
@@ -427,31 +498,51 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "hari",
+
             daily_report,
+
         )
+
     )
 
     application.add_handler(
+
         CommandHandler(
+
             "bulan",
+
             month_report,
+
         )
+
     )
 
     application.add_handler(
+
         CommandHandler(
+
             "rekap",
+
             expense_summary,
+
         )
+
     )
 
     application.add_handler(
+
         CommandHandler(
+
             "tanggal",
+
             date_report,
+
         )
+
     )
 
     # ========================================================
@@ -459,14 +550,21 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "statistik",
+
             statistics_command,
+
         )
+
     )
 
     application.add_handler(
+
         statistics_chart_handler
+
     )
 
     # ========================================================
@@ -474,10 +572,61 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "export",
+
             export_command,
+
         )
+
+    )
+
+    # ========================================================
+    # REMINDER
+    # ========================================================
+
+    application.add_handler(
+
+        CommandHandler(
+
+            "reminder",
+
+            reminder_command,
+
+        )
+
+    )
+
+    application.add_handler(
+
+        reminder_handler
+
+    )
+
+    application.add_handler(
+
+        reminder_time_handler
+
+    )
+
+    application.add_handler(
+
+        reminder_status_handler
+
+    )
+
+    application.add_handler(
+
+        reminder_off_handler
+
+    )
+
+    application.add_handler(
+
+        reminder_back_handler
+
     )
 
     # ========================================================
@@ -485,18 +634,27 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "budget",
+
             budget_command,
+
         )
+
     )
 
     application.add_handler(
+
         budget_set_handler
+
     )
 
     application.add_handler(
+
         budget_edit_handler
+
     )
 
     # ========================================================
@@ -504,22 +662,33 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         CommandHandler(
+
             "riwayat",
+
             history_command,
+
         )
+
     )
 
     application.add_handler(
+
         history_callback_handler
+
     )
 
     application.add_handler(
+
         history_detail_handler
+
     )
 
     application.add_handler(
+
         history_back_handler
+
     )
 
     # ========================================================
@@ -527,15 +696,21 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         expense_edit_handler
+
     )
 
     application.add_handler(
+
         edit_field_handler
+
     )
 
     application.add_handler(
+
         edit_cancel_handler
+
     )
 
     # ========================================================
@@ -543,15 +718,21 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         delete_expense_confirmation_handler
+
     )
 
     application.add_handler(
+
         delete_expense_handler
+
     )
 
     application.add_handler(
+
         delete_expense_cancel_handler
+
     )
 
     # ========================================================
@@ -559,10 +740,15 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         MessageHandler(
+
             filters.PHOTO,
+
             receipt_photo,
+
         )
+
     )
 
     # ========================================================
@@ -570,19 +756,27 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         receipt_callback_handler
+
     )
 
     application.add_handler(
+
         receipt_edit_callback_handler
+
     )
 
     application.add_handler(
+
         receipt_edit_field_callback_handler
+
     )
 
     application.add_handler(
+
         receipt_edit_back_callback_handler
+
     )
 
     # ========================================================
@@ -590,7 +784,9 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         expense_callback_handler
+
     )
 
     # ========================================================
@@ -598,7 +794,9 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         help_callback_handler
+
     )
 
     # ========================================================
@@ -606,11 +804,16 @@ def main():
     # ========================================================
 
     application.add_handler(
+
         MessageHandler(
+
             filters.TEXT
             & ~filters.COMMAND,
+
             text_router,
+
         )
+
     )
 
     # ========================================================
@@ -622,7 +825,9 @@ def main():
     )
 
     application.run_polling(
+
         allowed_updates=Update.ALL_TYPES
+
     )
 
 
