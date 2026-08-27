@@ -1,4 +1,5 @@
 from telegram import Update
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -8,7 +9,9 @@ from telegram.ext import (
 
 from app.config import TELEGRAM_BOT_TOKEN
 
-from app.handlers.start import start_command
+from app.handlers.start import (
+    start_command,
+)
 
 from app.handlers.expense import (
     expense_message,
@@ -26,6 +29,10 @@ from app.handlers.report import (
 from app.handlers.receipt import (
     receipt_photo,
     receipt_callback_handler,
+    receipt_edit_callback_handler,
+    receipt_edit_field_callback_handler,
+    receipt_edit_back_callback_handler,
+    receipt_edit_text,
 )
 
 from database.db import init_db
@@ -50,7 +57,7 @@ def main():
     )
 
     # ========================================================
-    # /START
+    # START
     # ========================================================
 
     application.add_handler(
@@ -61,7 +68,7 @@ def main():
     )
 
     # ========================================================
-    # /HARI
+    # REPORT
     # ========================================================
 
     application.add_handler(
@@ -71,10 +78,6 @@ def main():
         )
     )
 
-    # ========================================================
-    # /BULAN
-    # ========================================================
-
     application.add_handler(
         CommandHandler(
             "bulan",
@@ -82,20 +85,12 @@ def main():
         )
     )
 
-    # ========================================================
-    # /REKAP
-    # ========================================================
-
     application.add_handler(
         CommandHandler(
             "rekap",
             expense_summary,
         )
     )
-
-    # ========================================================
-    # /TANGGAL
-    # ========================================================
 
     application.add_handler(
         CommandHandler(
@@ -105,7 +100,7 @@ def main():
     )
 
     # ========================================================
-    # FOTO STRUK
+    # RECEIPT PHOTO
     # ========================================================
 
     application.add_handler(
@@ -116,24 +111,46 @@ def main():
     )
 
     # ========================================================
-    # CALLBACK STRUK
+    # RECEIPT CALLBACK
     # ========================================================
 
     application.add_handler(
         receipt_callback_handler
     )
 
+    application.add_handler(
+        receipt_edit_callback_handler
+    )
+
+    application.add_handler(
+        receipt_edit_field_callback_handler
+    )
+
+    application.add_handler(
+        receipt_edit_back_callback_handler
+    )
+
     # ========================================================
-    # CALLBACK EXPENSE MANUAL
+    # RECEIPT EDIT TEXT
+    #
+    # Harus diletakkan sebelum expense_message.
+    # Jika bukan mode edit, receipt_edit_text langsung return.
+    # ========================================================
+
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            receipt_edit_text,
+        )
+    )
+
+    # ========================================================
+    # MANUAL EXPENSE
     # ========================================================
 
     application.add_handler(
         expense_callback_handler
     )
-
-    # ========================================================
-    # TEXT MESSAGE
-    # ========================================================
 
     application.add_handler(
         MessageHandler(
@@ -143,7 +160,7 @@ def main():
     )
 
     # ========================================================
-    # RUN
+    # RUN BOT
     # ========================================================
 
     print(
