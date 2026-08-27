@@ -1,9 +1,15 @@
 import os
 import re
+from datetime import datetime
 
 import pytesseract
 
-from PIL import Image
+from PIL import (
+    Image,
+    ImageEnhance,
+    ImageFilter,
+    ImageOps,
+)
 
 from telegram import (
     InlineKeyboardButton,
@@ -17,11 +23,14 @@ from telegram.ext import (
 )
 
 from database.db import SessionLocal
-from database.models import Expense
+from database.models import (
+    Expense,
+    ExpenseItem,
+)
 
 
 # ============================================================
-# TESSERACT
+# TESSERACT CONFIGURATION
 # ============================================================
 
 pytesseract.pytesseract.tesseract_cmd = (
@@ -44,6 +53,149 @@ def format_rupiah(
 
 
 # ============================================================
+# NORMALIZE AMOUNT
+# ============================================================
+
+def normalize_amount(
+    value: str,
+):
+    """
+    Mengubah nominal OCR menjadi integer.
+
+    Contoh:
+
+    28.000 -> 28000
+    28,000 -> 28000
+    28000  -> 28000
+    """
+
+    if not value:
+        return None
+
+    value = value.strip()
+
+    value = re.sub(
+        r"[^\d.,]",
+        "",
+        value,
+    )
+
+    if not value:
+        return None
+
+    # Format Indonesia:
+    # 28.000
+    # 1.250.000
+    if "." in value:
+
+        parts = value.split(".")
+
+        if all(
+            len(part) == 3
+            for part in parts[1:]
+        ):
+            value = "".join(parts)
+
+    # Format:
+    # 28,000
+    # 1,250,000
+    elif "," in value:
+
+        parts = value.split(",")
+
+        if all(
+            len(part) == 3
+            for part in parts[1:]
+        ):
+            value = "".join(parts)
+
+    value = re.sub(
+        r"[.,]",
+        "",
+        value,
+    )
+
+    try:
+
+        return int(value)
+
+    except ValueError:
+
+        return None
+
+
+# ============================================================
+# IMAGE PREPROCESSING
+# ============================================================
+
+def preprocess_image(
+    image_path: str,
+):
+    """
+    Preprocessing gambar sebelum OCR.
+    """
+
+    image = Image.open(
+        image_path
+    )
+
+    # Grayscale
+    image = ImageOps.grayscale(
+        image
+    )
+
+    # Resize
+    width, height = image.size
+
+    image = image.resize(
+        (
+            width * 2,
+            height * 2,
+        )
+    )
+
+    # Contrast
+    enhancer = ImageEnhance.Contrast(
+        image
+    )
+
+    image = enhancer.enhance(
+        2.0
+    )
+
+    # Sharpen
+    image = image.filter(
+        ImageFilter.SHARPEN
+    )
+
+    return image
+
+
+# ============================================================
+# OCR
+# ============================================================
+
+def perform_ocr(
+    image_path: str,
+):
+    """
+    Menjalankan OCR Tesseract.
+    """
+
+    image = preprocess_image(
+        image_path
+    )
+
+    text = pytesseract.image_to_string(
+        image,
+        lang="eng",
+        config="--psm 6",
+    )
+
+    return text
+
+
+# ============================================================
 # EXTRACT TOTAL
 # ============================================================
 
@@ -51,32 +203,53 @@ def extract_total(
     text: str,
 ):
     """
-    Mencari total pembayaran dari OCR.
+    Mencari total pembayaran.
 
     Contoh:
 
-    Rp 28.000
-    Rp28.000
     TOTAL 28.000
     TOTAL: Rp28.000
     GRAND TOTAL 28.000
+    Nominal Transaksi
+    Rp 8.000
     """
-
-    patterns = [
-
-        # TOTAL / GRAND TOTAL
-        r"(?:grand\s+total|total|jumlah|bayar|amount)"
-        r"\s*:?\s*(?:rp|idr)?\s*"
-        r"([\d.,]+)",
-
-        # RP NOMINAL
-        r"\brp\s*([\d.,]+)",
-
-    ]
 
     amounts = []
 
-    for pattern in patterns:
+    # ========================================================
+    # PRIORITAS 1
+    # TOTAL
+    # ========================================================
+
+    priority_patterns = [
+
+        r"(?:grand\s*total)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+
+        r"(?:total)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+
+        r"(?:jumlah)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+
+        r"(?:nominal\s+transaksi)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+
+        r"(?:bayar)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+    ]
+
+    for pattern in priority_patterns:
 
         matches = re.findall(
             pattern,
@@ -86,35 +259,119 @@ def extract_total(
 
         for value in matches:
 
-            value = value.strip()
-
-            # Hilangkan titik/koma pemisah
-            normalized = re.sub(
-                r"[.,]",
-                "",
-                value,
+            amount = normalize_amount(
+                value
             )
 
-            try:
+            if amount and amount > 0:
 
-                amount = int(
-                    normalized
+                amounts.append(
+                    amount
                 )
 
-                if amount > 0:
-                    amounts.append(
-                        amount
-                    )
+    if amounts:
 
-            except ValueError:
+        return max(
+            amounts
+        )
 
-                continue
+    # ========================================================
+    # PRIORITAS 2
+    # NOMINAL RP
+    # ========================================================
 
-    if not amounts:
-        return None
+    rp_matches = re.findall(
+        r"\b(?:rp|idr)\s*([\d.,]+)",
+        text,
+        re.IGNORECASE,
+    )
 
-    # Ambil nominal terbesar
-    return max(amounts)
+    for value in rp_matches:
+
+        amount = normalize_amount(
+            value
+        )
+
+        if amount and amount > 0:
+
+            amounts.append(
+                amount
+            )
+
+    if amounts:
+
+        return max(
+            amounts
+        )
+
+    return None
+
+
+# ============================================================
+# VALIDATE MERCHANT
+# ============================================================
+
+def is_valid_merchant(
+    value: str,
+) -> bool:
+    """
+    Memastikan kandidat merchant valid.
+    """
+
+    if not value:
+
+        return False
+
+    value = value.strip()
+
+    if len(value) < 3:
+
+        return False
+
+    # Harus mengandung huruf
+    if not re.search(
+        r"[A-Za-z]",
+        value,
+    ):
+
+        return False
+
+    # Jangan angka murni
+    if re.fullmatch(
+        r"[\d\s.,:/\-]+",
+        value,
+    ):
+
+        return False
+
+    # Jangan nominal
+    if re.fullmatch(
+        r"(rp|idr)?\s*[\d.,]+",
+        value,
+        re.IGNORECASE,
+    ):
+
+        return False
+
+    # Noise OCR
+    noise_chars = [
+        "@",
+        "%",
+        "©",
+        "®",
+        "™",
+    ]
+
+    noise_count = sum(
+        value.count(char)
+        for char in noise_chars
+    )
+
+    if noise_count >= 1:
+
+        return False
+
+    return True
 
 
 # ============================================================
@@ -125,8 +382,17 @@ def extract_merchant(
     text: str,
 ):
     """
-    Mengambil kandidat nama merchant
-    dari hasil OCR.
+    Mencari merchant berdasarkan label.
+
+    Contoh:
+
+    Penerima
+    PT Tokopedia
+
+    atau:
+
+    Merchant
+    Starbucks
     """
 
     lines = [
@@ -135,45 +401,127 @@ def extract_merchant(
         if line.strip()
     ]
 
+    labels = [
+        "penerima",
+        "merchant",
+        "toko",
+        "store",
+        "outlet",
+        "recipient",
+    ]
+
+    # ========================================================
+    # CARI BERDASARKAN LABEL
+    # ========================================================
+
+    for index, line in enumerate(
+        lines
+    ):
+
+        normalized = (
+            line.lower()
+            .strip()
+        )
+
+        if normalized in labels:
+
+            if index + 1 < len(lines):
+
+                candidate = (
+                    lines[index + 1]
+                    .strip()
+                )
+
+                if is_valid_merchant(
+                    candidate
+                ):
+
+                    return candidate
+
+    # ========================================================
+    # FALLBACK
+    # ========================================================
+
     ignored_keywords = [
+
         "pembayaran",
         "berhasil",
+
         "lihat",
         "resi",
-        "jakarta",
+
         "bagikan",
+
         "bayar",
         "sekarang",
+
         "dalam genggaman",
+
         "total",
         "jumlah",
         "grand total",
-        "rp ",
+
+        "subtotal",
+        "sub total",
+
+        "nominal transaksi",
+
+        "tanggal",
+        "date",
+
+        "waktu",
+        "time",
+
+        "jakarta",
+        "indonesia",
+
+        "rp",
+        "idr",
+
     ]
 
-    for line in lines:
+    for line in lines[:15]:
 
-        lower_line = line.lower()
+        lower_line = (
+            line.lower()
+        )
 
-        # Abaikan baris tertentu
         if any(
             keyword in lower_line
             for keyword in ignored_keywords
         ):
+
             continue
 
-        # Abaikan baris yang hanya angka
+        if not re.search(
+            r"[A-Za-z]",
+            line,
+        ):
+
+            continue
+
+        if re.search(
+            r"\d{1,2}"
+            r"\s+[A-Za-z]+"
+            r"\s+\d{4}",
+            line,
+        ):
+
+            continue
+
         if re.fullmatch(
             r"[\d\s.,:/\-]+",
             line,
         ):
+
             continue
 
-        # Abaikan baris terlalu pendek
-        if len(line) < 4:
+        if not is_valid_merchant(
+            line
+        ):
+
             continue
 
-        # Merchant biasanya berupa teks
         return line
 
     return "Tidak diketahui"
@@ -189,13 +537,19 @@ def extract_date(
     """
     Mendukung:
 
-    27/08/2026
-    27-08-2026
-    27.08.2026
-    27/08/26
+    25/07/2026
+    25-07-2026
+    25.07.2026
+
+    25 Jul 2026
+    25 July 2026
     """
 
-    pattern = (
+    # ========================================================
+    # FORMAT ANGKA
+    # ========================================================
+
+    numeric_pattern = (
         r"\b"
         r"(\d{1,2})"
         r"[\/\-.]"
@@ -206,27 +560,148 @@ def extract_date(
     )
 
     match = re.search(
-        pattern,
+        numeric_pattern,
         text,
+        re.IGNORECASE,
+    )
+
+    if match:
+
+        day = int(
+            match.group(1)
+        )
+
+        month = int(
+            match.group(2)
+        )
+
+        year = int(
+            match.group(3)
+        )
+
+        if year < 100:
+
+            year += 2000
+
+        try:
+
+            return datetime(
+                year,
+                month,
+                day,
+            ).date()
+
+        except ValueError:
+
+            pass
+
+    # ========================================================
+    # FORMAT NAMA BULAN
+    # ========================================================
+
+    month_map = {
+
+        "jan": 1,
+        "januari": 1,
+        "january": 1,
+
+        "feb": 2,
+        "februari": 2,
+        "february": 2,
+
+        "mar": 3,
+        "maret": 3,
+        "march": 3,
+
+        "apr": 4,
+        "april": 4,
+
+        "mei": 5,
+        "may": 5,
+
+        "jun": 6,
+        "juni": 6,
+        "june": 6,
+
+        "jul": 7,
+        "juli": 7,
+        "july": 7,
+
+        "agu": 8,
+        "agustus": 8,
+        "aug": 8,
+        "august": 8,
+
+        "sep": 9,
+        "september": 9,
+
+        "okt": 10,
+        "oktober": 10,
+        "oct": 10,
+        "october": 10,
+
+        "nov": 11,
+        "november": 11,
+
+        "des": 12,
+        "desember": 12,
+        "dec": 12,
+        "december": 12,
+
+    }
+
+    month_pattern = (
+        r"\b"
+        r"(\d{1,2})"
+        r"\s+"
+        r"([A-Za-z]+)"
+        r"\s+"
+        r"(\d{4})"
+        r"\b"
+    )
+
+    match = re.search(
+        month_pattern,
+        text,
+        re.IGNORECASE,
     )
 
     if not match:
+
         return None
 
-    day = match.group(1)
-
-    month = match.group(2)
-
-    year = match.group(3)
-
-    if len(year) == 2:
-        year = "20" + year
-
-    return (
-        f"{day.zfill(2)}/"
-        f"{month.zfill(2)}/"
-        f"{year}"
+    day = int(
+        match.group(1)
     )
+
+    month_name = (
+        match.group(2)
+        .lower()
+    )
+
+    year = int(
+        match.group(3)
+    )
+
+    month = month_map.get(
+        month_name
+    )
+
+    if month is None:
+
+        return None
+
+    try:
+
+        return datetime(
+            year,
+            month,
+            day,
+        ).date()
+
+    except ValueError:
+
+        return None
 
 
 # ============================================================
@@ -251,6 +726,10 @@ def detect_category(
         "bakso",
         "mie",
         "ayam",
+        "nasi",
+        "pizza",
+        "burger",
+        "kuliner",
     ]
 
     transport_keywords = [
@@ -264,6 +743,7 @@ def detect_category(
         "gojek",
         "taxi",
         "tol",
+        "fuel",
     ]
 
     shopping_keywords = [
@@ -273,27 +753,231 @@ def detect_category(
         "minimarket",
         "shopee",
         "tokopedia",
+        "mall",
+        "store",
+        "mart",
+    ]
+
+    health_keywords = [
+        "apotek",
+        "pharmacy",
+        "rumah sakit",
+        "hospital",
+        "klinik",
+        "clinic",
+        "obat",
+    ]
+
+    entertainment_keywords = [
+        "bioskop",
+        "cinema",
+        "netflix",
+        "spotify",
+        "game",
+        "steam",
     ]
 
     if any(
         keyword in text
         for keyword in food_keywords
     ):
+
         return "Makanan"
 
     if any(
         keyword in text
         for keyword in transport_keywords
     ):
+
         return "Transportasi"
 
     if any(
         keyword in text
         for keyword in shopping_keywords
     ):
+
         return "Belanja"
 
+    if any(
+        keyword in text
+        for keyword in health_keywords
+    ):
+
+        return "Kesehatan"
+
+    if any(
+        keyword in text
+        for keyword in entertainment_keywords
+    ):
+
+        return "Hiburan"
+
     return "Lainnya"
+
+
+# ============================================================
+# EXTRACT ITEMS
+# ============================================================
+
+def extract_items(
+    text: str,
+    total: int | None = None,
+):
+    """
+    Mencoba mengambil item dari struk.
+
+    Contoh:
+
+    NASI GORENG 20.000
+    ES TEH 8.000
+    TOTAL 28.000
+    """
+
+    items = []
+
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    ignored_keywords = [
+        "total",
+        "grand total",
+        "jumlah",
+        "subtotal",
+        "sub total",
+        "pajak",
+        "tax",
+        "service",
+        "diskon",
+        "discount",
+        "kembalian",
+        "cash",
+        "tunai",
+        "bayar",
+        "pembayaran",
+        "berhasil",
+        "resi",
+        "bagikan",
+        "jakarta",
+        "alamat",
+        "tel",
+        "phone",
+        "tanggal",
+        "waktu",
+        "payment",
+        "penerima",
+        "nominal transaksi",
+    ]
+
+    amount_pattern = re.compile(
+        r"^(.+?)"
+        r"\s+"
+        r"(?:Rp|IDR)?\s*"
+        r"(\d[\d.,]*)"
+        r"\s*$",
+        re.IGNORECASE,
+    )
+
+    for line in lines:
+
+        lower_line = (
+            line.lower()
+        )
+
+        if any(
+            keyword in lower_line
+            for keyword in ignored_keywords
+        ):
+
+            continue
+
+        match = amount_pattern.match(
+            line
+        )
+
+        if not match:
+
+            continue
+
+        name = (
+            match.group(1)
+            .strip()
+        )
+
+        amount_text = (
+            match.group(2)
+        )
+
+        name = re.sub(
+            r"^[\s\-:|]+",
+            "",
+            name,
+        )
+
+        name = re.sub(
+            r"[\s\-:|]+$",
+            "",
+            name,
+        )
+
+        if len(name) < 2:
+
+            continue
+
+        amount = normalize_amount(
+            amount_text
+        )
+
+        if amount is None:
+
+            continue
+
+        if amount <= 0:
+
+            continue
+
+        # Jangan masukkan total sebagai item
+        if (
+            total is not None
+            and amount == total
+        ):
+
+            continue
+
+        quantity = 1
+
+        quantity_match = re.search(
+            r"(?:x|qty|quantity)"
+            r"\s*(\d+)",
+            name,
+            re.IGNORECASE,
+        )
+
+        if quantity_match:
+
+            quantity = int(
+                quantity_match.group(1)
+            )
+
+            name = re.sub(
+                r"(?:x|qty|quantity)"
+                r"\s*\d+",
+                "",
+                name,
+                flags=re.IGNORECASE,
+            ).strip()
+
+        items.append(
+            {
+                "name": name,
+                "quantity": quantity,
+                "amount": amount,
+            }
+        )
+
+    return items
 
 
 # ============================================================
@@ -303,18 +987,9 @@ def detect_category(
 def process_receipt(
     image_path: str,
 ):
-    """
-    Membaca foto menggunakan Tesseract
-    dan mengembalikan hasil ekstraksi.
-    """
 
-    image = Image.open(
+    text = perform_ocr(
         image_path
-    )
-
-    text = pytesseract.image_to_string(
-        image,
-        lang="eng",
     )
 
     total = extract_total(
@@ -325,12 +1000,17 @@ def process_receipt(
         text
     )
 
-    date = extract_date(
+    expense_date = extract_date(
         text
     )
 
     category = detect_category(
         text
+    )
+
+    items = extract_items(
+        text,
+        total,
     )
 
     return {
@@ -339,11 +1019,13 @@ def process_receipt(
 
         "merchant": merchant,
 
-        "date": date,
+        "date": expense_date,
 
         "total": total,
 
         "category": category,
+
+        "items": items,
 
     }
 
@@ -358,18 +1040,28 @@ async def receipt_photo(
 ):
 
     if not update.message:
+
         return
 
     if not update.message.photo:
+
         return
 
-    user_id = update.effective_user.id
+    user = update.effective_user
+
+    if not user:
+
+        return
+
+    user_id = user.id
 
     # ==========================================
-    # AMBIL FOTO TERBESAR
+    # FOTO TERBESAR
     # ==========================================
 
-    photo = update.message.photo[-1]
+    photo = (
+        update.message.photo[-1]
+    )
 
     telegram_file = (
         await context.bot.get_file(
@@ -378,7 +1070,7 @@ async def receipt_photo(
     )
 
     # ==========================================
-    # PATH FILE
+    # PATH
     # ==========================================
 
     file_path = (
@@ -393,15 +1085,13 @@ async def receipt_photo(
         file_path
     )
 
-    await update.message.reply_text(
-        "🔎 Sedang membaca struk..."
+    processing_message = (
+        await update.message.reply_text(
+            "🔎 Sedang membaca struk..."
+        )
     )
 
     try:
-
-        # ======================================
-        # OCR + EXTRACTION
-        # ======================================
 
         result = process_receipt(
             file_path
@@ -411,7 +1101,7 @@ async def receipt_photo(
             "merchant"
         ]
 
-        date = result[
+        expense_date = result[
             "date"
         ]
 
@@ -423,12 +1113,24 @@ async def receipt_photo(
             "category"
         ]
 
+        items = result[
+            "items"
+        ]
+
         # ======================================
         # DEBUG
         # ======================================
 
         print(
-            "\n========== OCR =========="
+            "\n================================"
+        )
+
+        print(
+            "OCR RESULT"
+        )
+
+        print(
+            "================================"
         )
 
         print(
@@ -436,7 +1138,7 @@ async def receipt_photo(
         )
 
         print(
-            "==========================\n"
+            "================================"
         )
 
         print(
@@ -444,7 +1146,7 @@ async def receipt_photo(
         )
 
         print(
-            f"Date     : {date}"
+            f"Date     : {expense_date}"
         )
 
         print(
@@ -455,26 +1157,34 @@ async def receipt_photo(
             f"Category : {category}"
         )
 
+        print(
+            f"Items    : {items}"
+        )
+
+        print(
+            "================================\n"
+        )
+
         # ======================================
         # TOTAL TIDAK DITEMUKAN
         # ======================================
 
         if total is None:
 
-            await update.message.reply_text(
+            await processing_message.edit_text(
 
                 "❌ Saya belum bisa menemukan "
-                "total pembayaran dari struk ini.\n\n"
+                "total pembayaran dari struk.\n\n"
 
-                "Pastikan bagian total terlihat "
-                "jelas pada foto."
+                "Pastikan nominal pembayaran "
+                "terlihat jelas pada foto."
 
             )
 
             return
 
         # ======================================
-        # SIMPAN PENDING
+        # PENDING RECEIPT
         # ======================================
 
         context.user_data[
@@ -485,11 +1195,13 @@ async def receipt_photo(
 
             "merchant": merchant,
 
-            "date": date,
+            "date": expense_date,
 
             "amount": total,
 
             "category": category,
+
+            "items": items,
 
             "image_path": file_path,
 
@@ -500,14 +1212,58 @@ async def receipt_photo(
         }
 
         # ======================================
-        # DATE DISPLAY
+        # DATE TEXT
         # ======================================
 
-        date_text = (
-            date
-            if date
-            else "Tidak terdeteksi"
-        )
+        if expense_date:
+
+            date_text = (
+                expense_date.strftime(
+                    "%d-%m-%Y"
+                )
+            )
+
+        else:
+
+            date_text = (
+                "Tidak terdeteksi"
+            )
+
+        # ======================================
+        # ITEM TEXT
+        # ======================================
+
+        if items:
+
+            item_text = (
+                "\n🧾 *Item:*\n"
+            )
+
+            for item in items:
+
+                item_text += (
+                    f"• {item['name']}"
+                )
+
+                if item[
+                    "quantity"
+                ] > 1:
+
+                    item_text += (
+                        f" x{item['quantity']}"
+                    )
+
+                item_text += (
+                    " — "
+                    f"{format_rupiah(item['amount'])}\n"
+                )
+
+        else:
+
+            item_text = (
+                "\n🧾 *Item:* "
+                "Tidak terdeteksi\n"
+            )
 
         # ======================================
         # CONFIRMATION
@@ -517,14 +1273,16 @@ async def receipt_photo(
 
             "🧾 *Struk berhasil dibaca!*\n\n"
 
-            f"🏪 Toko: {merchant}\n"
+            f"🏪 *Toko:* {merchant}\n"
 
-            f"📅 Tanggal: {date_text}\n"
+            f"📅 *Tanggal:* {date_text}\n"
 
-            f"💰 Total: "
+            f"💰 *Total:* "
             f"{format_rupiah(total)}\n"
 
-            f"🏷️ Kategori: {category}\n\n"
+            f"🏷️ *Kategori:* {category}\n"
+
+            f"{item_text}\n"
 
             "Apakah data ini sudah benar?"
 
@@ -558,7 +1316,7 @@ async def receipt_photo(
             )
         )
 
-        await update.message.reply_text(
+        await processing_message.edit_text(
 
             message,
 
@@ -571,10 +1329,14 @@ async def receipt_photo(
     except Exception as error:
 
         print(
-            f"Receipt OCR error: {error}"
+            "\nReceipt OCR error:"
         )
 
-        await update.message.reply_text(
+        print(
+            repr(error)
+        )
+
+        await processing_message.edit_text(
 
             "❌ Terjadi kesalahan "
             "saat membaca struk."
@@ -594,12 +1356,15 @@ async def receipt_callback(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
 
-    pending = context.user_data.get(
-        "pending_receipt"
+    pending = (
+        context.user_data.get(
+            "pending_receipt"
+        )
     )
 
     # ==========================================
@@ -611,8 +1376,11 @@ async def receipt_callback(
         image_path = None
 
         if pending:
-            image_path = pending.get(
-                "image_path"
+
+            image_path = (
+                pending.get(
+                    "image_path"
+                )
             )
 
         context.user_data.pop(
@@ -620,17 +1388,21 @@ async def receipt_callback(
             None,
         )
 
-        # Hapus foto sementara
-        if image_path and os.path.exists(
-            image_path
-        ):
+        if image_path:
 
-            try:
-                os.remove(
-                    image_path
-                )
-            except OSError:
-                pass
+            if os.path.exists(
+                image_path
+            ):
+
+                try:
+
+                    os.remove(
+                        image_path
+                    )
+
+                except OSError:
+
+                    pass
 
         await query.edit_message_text(
             "❌ Penyimpanan struk dibatalkan."
@@ -660,7 +1432,7 @@ async def receipt_callback(
         try:
 
             # ==================================
-            # BUAT EXPENSE
+            # EXPENSE
             # ==================================
 
             expense = Expense(
@@ -681,11 +1453,49 @@ async def receipt_callback(
                     "category"
                 ],
 
+                expense_date=pending[
+                    "date"
+                ],
+
             )
 
             db.add(
                 expense
             )
+
+            # ==================================
+            # ITEMS
+            # ==================================
+
+            for item_data in pending[
+                "items"
+            ]:
+
+                item = ExpenseItem(
+
+                    expense=expense,
+
+                    name=item_data[
+                        "name"
+                    ],
+
+                    quantity=item_data[
+                        "quantity"
+                    ],
+
+                    amount=item_data[
+                        "amount"
+                    ],
+
+                )
+
+                db.add(
+                    item
+                )
+
+            # ==================================
+            # COMMIT
+            # ==================================
 
             db.commit()
 
@@ -693,27 +1503,39 @@ async def receipt_callback(
                 expense
             )
 
-            image_path = pending.get(
-                "image_path"
+            # ==================================
+            # HAPUS FOTO
+            # ==================================
+
+            image_path = (
+                pending.get(
+                    "image_path"
+                )
             )
 
+            if image_path:
+
+                if os.path.exists(
+                    image_path
+                ):
+
+                    try:
+
+                        os.remove(
+                            image_path
+                        )
+
+                    except OSError:
+
+                        pass
+
             # ==================================
-            # HAPUS FOTO SEMENTARA
+            # JUMLAH ITEM
             # ==================================
 
-            if image_path and os.path.exists(
-                image_path
-            ):
-
-                try:
-
-                    os.remove(
-                        image_path
-                    )
-
-                except OSError:
-
-                    pass
+            item_count = len(
+                pending["items"]
+            )
 
             # ==================================
             # RESPONSE
@@ -723,14 +1545,17 @@ async def receipt_callback(
 
                 "✅ *Struk berhasil disimpan!*\n\n"
 
-                f"🏪 Toko: "
+                f"🏪 *Toko:* "
                 f"{expense.description}\n"
 
-                f"💰 Total: "
+                f"💰 *Total:* "
                 f"{format_rupiah(expense.amount)}\n"
 
-                f"🏷️ Kategori: "
-                f"{expense.category}\n\n"
+                f"🏷️ *Kategori:* "
+                f"{expense.category}\n"
+
+                f"🧾 *Item:* "
+                f"{item_count}\n\n"
 
                 "💾 Transaksi sudah masuk "
                 "ke database.",
@@ -747,7 +1572,11 @@ async def receipt_callback(
         except Exception as error:
 
             print(
-                f"Receipt save error: {error}"
+                "\nReceipt save error:"
+            )
+
+            print(
+                repr(error)
             )
 
             db.rollback()
