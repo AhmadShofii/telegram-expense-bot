@@ -48,6 +48,7 @@ from app.handlers.report import (
 
 from app.handlers.statistics import (
     statistics_command,
+    statistics_chart_handler,
 )
 
 
@@ -111,6 +112,7 @@ async def text_router(
     update: Update,
     context,
 ):
+
     """
     Mengatur pesan text berdasarkan state user.
 
@@ -261,6 +263,10 @@ def main():
             "statistik",
             statistics_command,
         )
+    )
+
+    application.add_handler(
+        statistics_chart_handler
     )
 
     # ========================================================

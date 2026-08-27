@@ -1,9 +1,26 @@
+import os
+import tempfile
 from datetime import date
+
+import matplotlib
+
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
 
 from sqlalchemy import func, select
 
-from telegram import Update
-from telegram.ext import ContextTypes
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputFile,
+    Update,
+)
+
+from telegram.ext import (
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 from database.db import SessionLocal
 from database.models import Expense
@@ -47,7 +64,7 @@ def format_rupiah(
 
 
 # ============================================================
-# GET CURRENT MONTH RANGE
+# CURRENT MONTH RANGE
 # ============================================================
 
 def get_current_month_range():
@@ -83,7 +100,7 @@ def get_current_month_range():
 
 
 # ============================================================
-# GET STATISTICS DATA
+# GET STATISTICS
 # ============================================================
 
 def get_statistics(
@@ -99,7 +116,7 @@ def get_statistics(
     try:
 
         # ====================================================
-        # TOTAL EXPENSE
+        # TOTAL
         # ====================================================
 
         total_statement = (
@@ -127,7 +144,7 @@ def get_statistics(
         )
 
         # ====================================================
-        # TOTAL TRANSACTION
+        # TRANSACTION COUNT
         # ====================================================
 
         count_statement = (
@@ -185,6 +202,11 @@ def get_statistics(
 
         for category, amount in category_rows:
 
+            category = (
+                category
+                or "Lainnya"
+            )
+
             amount = int(
                 amount or 0
             )
@@ -203,10 +225,7 @@ def get_statistics(
 
             categories.append(
                 {
-                    "category": (
-                        category
-                        or "Lainnya"
-                    ),
+                    "category": category,
                     "amount": amount,
                     "percentage": percentage,
                 }
@@ -411,7 +430,7 @@ def build_statistics_message(
     )
 
     # ========================================================
-    # CATEGORIES
+    # CATEGORY
     # ========================================================
 
     for item in categories:
@@ -487,6 +506,35 @@ def build_statistics_message(
 
 
 # ============================================================
+# STATISTICS KEYBOARD
+# ============================================================
+
+def build_statistics_keyboard():
+
+    keyboard = [
+
+        [
+
+            InlineKeyboardButton(
+
+                "📈 Lihat Grafik",
+
+                callback_data=(
+                    "statistics_chart"
+                ),
+
+            ),
+
+        ],
+
+    ]
+
+    return InlineKeyboardMarkup(
+        keyboard
+    )
+
+
+# ============================================================
 # /STATISTIK
 # ============================================================
 
@@ -515,11 +563,17 @@ async def statistics_command(
             )
         )
 
+        keyboard = (
+            build_statistics_keyboard()
+        )
+
         if update.message:
 
             await update.message.reply_text(
 
                 message,
+
+                reply_markup=keyboard,
 
                 parse_mode="Markdown",
 
@@ -530,6 +584,8 @@ async def statistics_command(
             await update.callback_query.message.reply_text(
 
                 message,
+
+                reply_markup=keyboard,
 
                 parse_mode="Markdown",
 
@@ -553,3 +609,259 @@ async def statistics_command(
                 "saat mengambil statistik."
 
             )
+
+
+# ============================================================
+# CREATE EXPENSE CHART
+# ============================================================
+
+def create_expense_chart(
+    user_id: int,
+):
+
+    data = get_statistics(
+        user_id
+    )
+
+    categories = data[
+        "categories"
+    ]
+
+    if not categories:
+
+        return None
+
+    labels = [
+        item["category"]
+        for item in categories
+    ]
+
+    values = [
+        item["amount"]
+        for item in categories
+    ]
+
+    today = date.today()
+
+    month_name = MONTH_NAMES[
+        today.month - 1
+    ]
+
+    # ========================================================
+    # TEMP FILE
+    # ========================================================
+
+    temp_file = tempfile.NamedTemporaryFile(
+        suffix=".png",
+        delete=False,
+    )
+
+    chart_path = (
+        temp_file.name
+    )
+
+    temp_file.close()
+
+    # ========================================================
+    # FIGURE
+    # ========================================================
+
+    figure = plt.figure(
+        figsize=(9, 6)
+    )
+
+    axis = figure.add_subplot(
+        111
+    )
+
+    axis.bar(
+        labels,
+        values,
+    )
+
+    axis.set_title(
+        f"Pengeluaran Berdasarkan Kategori\n"
+        f"{month_name} {today.year}"
+    )
+
+    axis.set_xlabel(
+        "Kategori"
+    )
+
+    axis.set_ylabel(
+        "Nominal (Rp)"
+    )
+
+    axis.tick_params(
+        axis="x",
+        rotation=25,
+    )
+
+    # ========================================================
+    # VALUE LABEL
+    # ========================================================
+
+    for index, value in enumerate(
+        values
+    ):
+
+        axis.text(
+            index,
+            value,
+            format_rupiah(value),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+    figure.tight_layout()
+
+    figure.savefig(
+        chart_path,
+        dpi=150,
+        bbox_inches="tight",
+    )
+
+    plt.close(
+        figure
+    )
+
+    return chart_path
+
+
+# ============================================================
+# SEND EXPENSE CHART
+# ============================================================
+
+async def statistics_chart_callback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+
+    query = update.callback_query
+
+    if not query:
+
+        return
+
+    await query.answer()
+
+    if not update.effective_user:
+
+        return
+
+    user_id = (
+        update.effective_user.id
+    )
+
+    chart_path = None
+
+    try:
+
+        chart_path = (
+            create_expense_chart(
+                user_id
+            )
+        )
+
+        if not chart_path:
+
+            await query.message.reply_text(
+
+                "📈 Belum ada data "
+                "untuk dibuat grafik."
+
+            )
+
+            return
+
+        today = date.today()
+
+        month_name = MONTH_NAMES[
+            today.month - 1
+        ]
+
+        caption = (
+
+            f"📈 *Grafik Pengeluaran*\n\n"
+
+            f"{month_name} "
+            f"{today.year}\n\n"
+
+            "Grafik menunjukkan "
+            "total pengeluaran "
+            "berdasarkan kategori."
+
+        )
+
+        with open(
+            chart_path,
+            "rb",
+        ) as chart_file:
+
+            await query.message.reply_photo(
+
+                photo=InputFile(
+                    chart_file,
+                    filename=(
+                        "expense_chart.png"
+                    ),
+                ),
+
+                caption=caption,
+
+                parse_mode="Markdown",
+
+            )
+
+    except Exception as error:
+
+        print(
+            "Chart error:"
+        )
+
+        print(
+            repr(error)
+        )
+
+        await query.message.reply_text(
+
+            "❌ Gagal membuat "
+            "grafik pengeluaran."
+
+        )
+
+    finally:
+
+        if chart_path:
+
+            try:
+
+                if os.path.exists(
+                    chart_path
+                ):
+
+                    os.remove(
+                        chart_path
+                    )
+
+            except OSError:
+
+                pass
+
+
+# ============================================================
+# CALLBACK HANDLER
+# ============================================================
+
+statistics_chart_handler = (
+    CallbackQueryHandler(
+
+        statistics_chart_callback,
+
+        pattern=(
+            r"^statistics_chart$"
+        ),
+
+    )
+)
