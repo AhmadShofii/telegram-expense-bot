@@ -166,7 +166,6 @@ def build_progress_bar(
     percentage: float,
 ) -> str:
 
-    # Batasi antara 0 - 100
     percentage = max(
         0,
         min(
@@ -234,10 +233,6 @@ def build_budget_message(
         percentage
     )
 
-    # --------------------------------------------------------
-    # STATUS
-    # --------------------------------------------------------
-
     if percentage >= 100:
 
         status = (
@@ -257,10 +252,6 @@ def build_budget_message(
             "🟢 *Budget masih aman.*"
         )
 
-    # --------------------------------------------------------
-    # REMAINING
-    # --------------------------------------------------------
-
     if remaining >= 0:
 
         remaining_text = (
@@ -274,16 +265,11 @@ def build_budget_message(
         remaining_text = (
 
             "-"
-
             + format_rupiah(
                 abs(remaining)
             )
 
         )
-
-    # --------------------------------------------------------
-    # MESSAGE
-    # --------------------------------------------------------
 
     return (
 
@@ -309,6 +295,155 @@ def build_budget_message(
 
 
 # ============================================================
+# BUILD BUDGET WARNING
+# ============================================================
+
+def build_budget_warning(
+    user_id: int,
+):
+    """
+    Menghasilkan pesan warning berdasarkan
+    penggunaan budget bulan berjalan.
+
+    Return:
+        None  -> belum ada warning
+        str   -> pesan warning
+    """
+
+    budget = get_current_budget(
+        user_id
+    )
+
+    # --------------------------------------------------------
+    # Belum ada budget
+    # --------------------------------------------------------
+
+    if not budget:
+
+        return None
+
+    expense_total = (
+        get_current_expense_total(
+            user_id
+        )
+    )
+
+    budget_amount = int(
+        budget.amount
+    )
+
+    if budget_amount <= 0:
+
+        return None
+
+    percentage = (
+        expense_total
+        / budget_amount
+        * 100
+    )
+
+    # --------------------------------------------------------
+    # Di bawah 80%
+    # --------------------------------------------------------
+
+    if percentage < 80:
+
+        return None
+
+    # --------------------------------------------------------
+    # Budget terlampaui
+    # --------------------------------------------------------
+
+    if percentage >= 100:
+
+        exceeded = (
+            expense_total
+            - budget_amount
+        )
+
+        return (
+
+            "🔴 *Budget terlampaui!*\n\n"
+
+            f"Budget: "
+            f"{format_rupiah(budget_amount)}\n"
+
+            f"Pengeluaran: "
+            f"{format_rupiah(expense_total)}\n"
+
+            f"Lebih: "
+            f"{format_rupiah(exceeded)}"
+
+        )
+
+    # --------------------------------------------------------
+    # 80% - 99%
+    # --------------------------------------------------------
+
+    remaining = (
+        budget_amount
+        - expense_total
+    )
+
+    return (
+
+        "🟡 *Peringatan Budget*\n\n"
+
+        f"Budget sudah terpakai "
+        f"*{percentage:.1f}%*.\n\n"
+
+        f"Budget: "
+        f"{format_rupiah(budget_amount)}\n"
+
+        f"Pengeluaran: "
+        f"{format_rupiah(expense_total)}\n"
+
+        f"Sisa: "
+        f"{format_rupiah(remaining)}"
+
+    )
+
+
+# ============================================================
+# GET BUDGET WARNING
+# ============================================================
+
+async def send_budget_warning(
+    update: Update,
+):
+    """
+    Mengirim warning budget setelah transaksi berhasil
+    disimpan.
+    """
+
+    if not update.effective_user:
+
+        return
+
+    user_id = (
+        update.effective_user.id
+    )
+
+    warning = build_budget_warning(
+        user_id
+    )
+
+    if not warning:
+
+        return
+
+    if update.message:
+
+        await update.message.reply_text(
+
+            warning,
+
+            parse_mode="Markdown",
+
+        )
+
+
+# ============================================================
 # SHOW BUDGET
 # ============================================================
 
@@ -329,9 +464,9 @@ async def show_budget(
         user_id
     )
 
-    # ========================================================
+    # --------------------------------------------------------
     # BELUM ADA BUDGET
-    # ========================================================
+    # --------------------------------------------------------
 
     if not budget:
 
@@ -371,9 +506,9 @@ async def show_budget(
 
         ]
 
-    # ========================================================
-    # SUDAH ADA BUDGET
-    # ========================================================
+    # --------------------------------------------------------
+    # SUDAH ADA
+    # --------------------------------------------------------
 
     else:
 
@@ -413,9 +548,9 @@ async def show_budget(
         keyboard
     )
 
-    # ========================================================
+    # --------------------------------------------------------
     # CALLBACK
-    # ========================================================
+    # --------------------------------------------------------
 
     if update.callback_query:
 
@@ -429,9 +564,9 @@ async def show_budget(
 
         )
 
-    # ========================================================
+    # --------------------------------------------------------
     # MESSAGE
-    # ========================================================
+    # --------------------------------------------------------
 
     elif update.message:
 
@@ -462,7 +597,7 @@ async def budget_command(
 
 
 # ============================================================
-# SET BUDGET
+# SET BUDGET PROMPT
 # ============================================================
 
 async def set_budget_prompt(
@@ -501,7 +636,7 @@ async def set_budget_prompt(
 
 
 # ============================================================
-# EDIT BUDGET
+# EDIT BUDGET PROMPT
 # ============================================================
 
 async def edit_budget_prompt(
@@ -559,10 +694,6 @@ async def budget_input(
     value = (
         update.message.text.strip()
     )
-
-    # ========================================================
-    # CLEAN VALUE
-    # ========================================================
 
     clean_value = (
 
@@ -623,10 +754,6 @@ async def budget_input(
 
         return True
 
-    # ========================================================
-    # USER
-    # ========================================================
-
     if not update.effective_user:
 
         return True
@@ -654,10 +781,6 @@ async def budget_input(
             statement
         )
 
-        # ----------------------------------------------------
-        # CREATE
-        # ----------------------------------------------------
-
         if budget is None:
 
             budget = Budget(
@@ -678,10 +801,6 @@ async def budget_input(
 
             action = "ditambahkan"
 
-        # ----------------------------------------------------
-        # UPDATE
-        # ----------------------------------------------------
-
         else:
 
             budget.amount = amount
@@ -690,18 +809,10 @@ async def budget_input(
 
         db.commit()
 
-        # ----------------------------------------------------
-        # CLEAR STATE
-        # ----------------------------------------------------
-
         context.user_data.pop(
             "budget_input_mode",
             None,
         )
-
-        # ----------------------------------------------------
-        # RESPONSE
-        # ----------------------------------------------------
 
         await update.message.reply_text(
 

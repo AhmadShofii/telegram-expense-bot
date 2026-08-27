@@ -65,12 +65,10 @@ from app.handlers.history import (
     history_callback_handler,
     history_detail_handler,
     history_back_handler,
-
     expense_edit_handler,
     edit_field_handler,
     edit_cancel_handler,
     edit_expense_text,
-
     delete_expense_confirmation_handler,
     delete_expense_handler,
     delete_expense_cancel_handler,
@@ -108,6 +106,7 @@ async def text_router(
     Mengatur pesan text berdasarkan state user.
 
     Prioritas:
+
     1. Input budget
     2. Edit transaksi tersimpan
     3. Edit receipt
@@ -128,7 +127,6 @@ async def text_router(
         )
 
         if handled:
-
             return
 
     # ========================================================
@@ -145,7 +143,6 @@ async def text_router(
         )
 
         if handled:
-
             return
 
     # ========================================================
@@ -155,6 +152,9 @@ async def text_router(
     receipt_edit_state = (
         context.user_data.get(
             "receipt_edit_field"
+        )
+        or context.user_data.get(
+            "editing_receipt_field"
         )
     )
 
@@ -355,8 +355,7 @@ def main():
 
     application.add_handler(
         MessageHandler(
-            filters.TEXT
-            & ~filters.COMMAND,
+            filters.TEXT & ~filters.COMMAND,
             text_router,
         )
     )
@@ -379,5 +378,4 @@ def main():
 # ============================================================
 
 if __name__ == "__main__":
-
     main()

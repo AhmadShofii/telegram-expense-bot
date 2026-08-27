@@ -23,9 +23,14 @@ from telegram.ext import (
 )
 
 from database.db import SessionLocal
+
 from database.models import (
     Expense,
     ExpenseItem,
+)
+
+from app.handlers.budget import (
+    send_budget_warning,
 )
 
 
@@ -46,7 +51,10 @@ def format_rupiah(
     amount: int,
 ) -> str:
 
-    return f"Rp{amount:,}".replace(
+    if amount is None:
+        amount = 0
+
+    return f"Rp{int(amount):,}".replace(
         ",",
         ".",
     )
@@ -59,6 +67,7 @@ def format_rupiah(
 def normalize_amount(
     value: str,
 ):
+
     if not value:
         return None
 
@@ -81,6 +90,7 @@ def normalize_amount(
             len(part) == 3
             for part in parts[1:]
         ):
+
             value = "".join(parts)
 
     elif "," in value:
@@ -91,6 +101,7 @@ def normalize_amount(
             len(part) == 3
             for part in parts[1:]
         ):
+
             value = "".join(parts)
 
     value = re.sub(
@@ -100,9 +111,11 @@ def normalize_amount(
     )
 
     try:
+
         return int(value)
 
     except ValueError:
+
         return None
 
 
@@ -227,6 +240,7 @@ def extract_total(
                 )
 
     if amounts:
+
         return max(amounts)
 
     rp_matches = re.findall(
@@ -248,6 +262,7 @@ def extract_total(
             )
 
     if amounts:
+
         return max(amounts)
 
     return None
@@ -262,23 +277,27 @@ def is_valid_merchant(
 ) -> bool:
 
     if not value:
+
         return False
 
     value = value.strip()
 
     if len(value) < 3:
+
         return False
 
     if not re.search(
         r"[A-Za-z]",
         value,
     ):
+
         return False
 
     if re.fullmatch(
         r"[\d\s.,:/\-]+",
         value,
     ):
+
         return False
 
     if re.fullmatch(
@@ -286,6 +305,7 @@ def is_valid_merchant(
         value,
         re.IGNORECASE,
     ):
+
         return False
 
     noise_chars = [
@@ -302,6 +322,7 @@ def is_valid_merchant(
     )
 
     if noise_count >= 1:
+
         return False
 
     return True
@@ -316,9 +337,13 @@ def extract_merchant(
 ):
 
     lines = [
+
         line.strip()
+
         for line in text.splitlines()
+
         if line.strip()
+
     ]
 
     labels = [
@@ -330,7 +355,10 @@ def extract_merchant(
         "recipient",
     ]
 
-    # Cari berdasarkan label
+    # --------------------------------------------------------
+    # Berdasarkan label
+    # --------------------------------------------------------
+
     for index, line in enumerate(
         lines
     ):
@@ -355,7 +383,10 @@ def extract_merchant(
 
                     return candidate
 
+    # --------------------------------------------------------
     # Fallback
+    # --------------------------------------------------------
+
     ignored_keywords = [
 
         "pembayaran",
@@ -404,12 +435,14 @@ def extract_merchant(
             keyword in lower_line
             for keyword in ignored_keywords
         ):
+
             continue
 
         if not re.search(
             r"[A-Za-z]",
             line,
         ):
+
             continue
 
         if re.search(
@@ -418,17 +451,20 @@ def extract_merchant(
             r"\s+\d{4}",
             line,
         ):
+
             continue
 
         if re.fullmatch(
             r"[\d\s.,:/\-]+",
             line,
         ):
+
             continue
 
         if not is_valid_merchant(
             line
         ):
+
             continue
 
         return line
@@ -444,19 +480,28 @@ def extract_date(
     text: str,
 ):
 
-    # Format:
+    # --------------------------------------------------------
     # 25/07/2026
     # 25-07-2026
     # 25.07.2026
+    # --------------------------------------------------------
 
     numeric_pattern = (
+
         r"\b"
+
         r"(\d{1,2})"
+
         r"[\/\-.]"
+
         r"(\d{1,2})"
+
         r"[\/\-.]"
+
         r"(\d{2,4})"
+
         r"\b"
+
     )
 
     match = re.search(
@@ -480,6 +525,7 @@ def extract_date(
         )
 
         if year < 100:
+
             year += 2000
 
         try:
@@ -491,11 +537,13 @@ def extract_date(
             ).date()
 
         except ValueError:
+
             pass
 
-    # Format:
+    # --------------------------------------------------------
     # 25 Jul 2026
     # 25 July 2026
+    # --------------------------------------------------------
 
     month_map = {
 
@@ -549,13 +597,21 @@ def extract_date(
     }
 
     month_pattern = (
+
         r"\b"
+
         r"(\d{1,2})"
+
         r"\s+"
+
         r"([A-Za-z]+)"
+
         r"\s+"
+
         r"(\d{4})"
+
         r"\b"
+
     )
 
     match = re.search(
@@ -565,6 +621,7 @@ def extract_date(
     )
 
     if not match:
+
         return None
 
     day = int(
@@ -585,6 +642,7 @@ def extract_date(
     )
 
     if month is None:
+
         return None
 
     try:
@@ -611,6 +669,7 @@ def detect_category(
     text = text.lower()
 
     food_keywords = [
+
         "restaurant",
         "restoran",
         "cafe",
@@ -626,9 +685,11 @@ def detect_category(
         "pizza",
         "burger",
         "kuliner",
+
     ]
 
     transport_keywords = [
+
         "bensin",
         "pertalite",
         "pertamax",
@@ -640,9 +701,11 @@ def detect_category(
         "taxi",
         "tol",
         "fuel",
+
     ]
 
     shopping_keywords = [
+
         "indomaret",
         "alfamart",
         "supermarket",
@@ -652,9 +715,11 @@ def detect_category(
         "mall",
         "store",
         "mart",
+
     ]
 
     health_keywords = [
+
         "apotek",
         "pharmacy",
         "rumah sakit",
@@ -662,45 +727,53 @@ def detect_category(
         "klinik",
         "clinic",
         "obat",
+
     ]
 
     entertainment_keywords = [
+
         "bioskop",
         "cinema",
         "netflix",
         "spotify",
         "game",
         "steam",
+
     ]
 
     if any(
         keyword in text
         for keyword in food_keywords
     ):
+
         return "Makanan"
 
     if any(
         keyword in text
         for keyword in transport_keywords
     ):
+
         return "Transportasi"
 
     if any(
         keyword in text
         for keyword in shopping_keywords
     ):
+
         return "Belanja"
 
     if any(
         keyword in text
         for keyword in health_keywords
     ):
+
         return "Kesehatan"
 
     if any(
         keyword in text
         for keyword in entertainment_keywords
     ):
+
         return "Hiburan"
 
     return "Lainnya"
@@ -718,48 +791,78 @@ def extract_items(
     items = []
 
     lines = [
+
         line.strip()
+
         for line in text.splitlines()
+
         if line.strip()
+
     ]
 
     ignored_keywords = [
+
         "total",
         "grand total",
         "jumlah",
+
         "subtotal",
         "sub total",
+
         "pajak",
         "tax",
+
         "service",
+
         "diskon",
         "discount",
+
         "kembalian",
+
         "cash",
         "tunai",
+
         "bayar",
         "pembayaran",
+
         "berhasil",
+
         "resi",
+
         "bagikan",
+
         "jakarta",
+
         "alamat",
+
         "tel",
         "phone",
+
         "tanggal",
         "waktu",
+
         "payment",
+
         "penerima",
+
         "nominal transaksi",
+
     ]
 
     amount_pattern = re.compile(
+
         r"^(.+?)"
+
         r"\s+"
+
         r"(?:Rp|IDR)?\s*"
+
         r"(\d[\d.,]*)"
+
         r"\s*$",
+
         re.IGNORECASE,
+
     )
 
     for line in lines:
@@ -772,6 +875,7 @@ def extract_items(
             keyword in lower_line
             for keyword in ignored_keywords
         ):
+
             continue
 
         match = amount_pattern.match(
@@ -779,6 +883,7 @@ def extract_items(
         )
 
         if not match:
+
             continue
 
         name = (
@@ -790,25 +895,36 @@ def extract_items(
             match.group(2)
         )
 
-        if not name or amount is None:
+        if not name:
+
+            continue
+
+        if amount is None:
+
             continue
 
         if amount <= 0:
+
             continue
 
         if (
             total is not None
             and amount == total
         ):
+
             continue
 
         quantity = 1
 
         quantity_match = re.search(
+
             r"(?:x|qty|quantity)"
             r"\s*(\d+)",
+
             name,
+
             re.IGNORECASE,
+
         )
 
         if quantity_match:
@@ -818,19 +934,26 @@ def extract_items(
             )
 
             name = re.sub(
+
                 r"(?:x|qty|quantity)"
                 r"\s*\d+",
+
                 "",
+
                 name,
+
                 flags=re.IGNORECASE,
+
             ).strip()
 
         items.append(
+
             {
                 "name": name,
                 "quantity": quantity,
                 "amount": amount,
             }
+
         )
 
     return items
@@ -900,6 +1023,7 @@ async def show_receipt_confirmation(
     )
 
     if not pending:
+
         return
 
     merchant = pending.get(
@@ -967,8 +1091,13 @@ async def show_receipt_confirmation(
                 )
 
             item_text += (
+
                 " — "
-                f"{format_rupiah(item['amount'])}\n"
+
+                f"{format_rupiah(item['amount'])}"
+
+                "\n"
+
             )
 
     else:
@@ -1006,13 +1135,23 @@ async def show_receipt_confirmation(
         [
 
             InlineKeyboardButton(
+
                 "✏️ Edit",
-                callback_data="receipt_edit_menu",
+
+                callback_data=(
+                    "receipt_edit_menu"
+                ),
+
             ),
 
             InlineKeyboardButton(
+
                 "✅ Simpan",
-                callback_data="receipt_save",
+
+                callback_data=(
+                    "receipt_save"
+                ),
+
             ),
 
         ],
@@ -1020,8 +1159,13 @@ async def show_receipt_confirmation(
         [
 
             InlineKeyboardButton(
+
                 "❌ Batal",
-                callback_data="receipt_cancel",
+
+                callback_data=(
+                    "receipt_cancel"
+                ),
+
             ),
 
         ],
@@ -1067,14 +1211,17 @@ async def receipt_photo(
 ):
 
     if not update.message:
+
         return
 
     if not update.message.photo:
+
         return
 
     user = update.effective_user
 
     if not user:
+
         return
 
     user_id = user.id
@@ -1108,6 +1255,10 @@ async def receipt_photo(
         result = process_receipt(
             file_path
         )
+
+        # ====================================================
+        # DEBUG OCR
+        # ====================================================
 
         print(
             "\n================================"
@@ -1158,6 +1309,10 @@ async def receipt_photo(
             "================================\n"
         )
 
+        # ====================================================
+        # TOTAL TIDAK DITEMUKAN
+        # ====================================================
+
         if result["total"] is None:
 
             await processing_message.edit_text(
@@ -1173,7 +1328,7 @@ async def receipt_photo(
             return
 
         # ====================================================
-        # SAVE PENDING
+        # SAVE PENDING RECEIPT
         # ====================================================
 
         context.user_data[
@@ -1236,7 +1391,7 @@ async def receipt_photo(
 
 
 # ============================================================
-# RECEIPT SAVE / CANCEL
+# RECEIPT CALLBACK
 # ============================================================
 
 async def receipt_callback(
@@ -1247,6 +1402,7 @@ async def receipt_callback(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
@@ -1287,10 +1443,13 @@ async def receipt_callback(
                     )
 
                 except OSError:
+
                     pass
 
         await query.edit_message_text(
+
             "❌ Penyimpanan struk dibatalkan."
+
         )
 
         return
@@ -1344,6 +1503,10 @@ async def receipt_callback(
                 expense
             )
 
+            # =================================================
+            # SAVE ITEMS
+            # =================================================
+
             for item_data in pending[
                 "items"
             ]:
@@ -1370,11 +1533,19 @@ async def receipt_callback(
                     item
                 )
 
+            # =================================================
+            # COMMIT
+            # =================================================
+
             db.commit()
 
             db.refresh(
                 expense
             )
+
+            # =================================================
+            # DELETE TEMP IMAGE
+            # =================================================
 
             image_path = pending.get(
                 "image_path"
@@ -1393,7 +1564,12 @@ async def receipt_callback(
                         )
 
                     except OSError:
+
                         pass
+
+            # =================================================
+            # SUCCESS MESSAGE
+            # =================================================
 
             item_count = len(
                 pending["items"]
@@ -1421,6 +1597,18 @@ async def receipt_callback(
                 parse_mode="Markdown",
 
             )
+
+            # =================================================
+            # BUDGET WARNING
+            # =================================================
+
+            await send_budget_warning(
+                update
+            )
+
+            # =================================================
+            # CLEAR PENDING
+            # =================================================
 
             context.user_data.pop(
                 "pending_receipt",
@@ -1463,6 +1651,7 @@ async def receipt_edit_menu(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
@@ -1474,7 +1663,10 @@ async def receipt_edit_menu(
     if not pending:
 
         await query.edit_message_text(
-            "❌ Data struk sudah tidak tersedia."
+
+            "❌ Data struk "
+            "sudah tidak tersedia."
+
         )
 
         return
@@ -1484,17 +1676,23 @@ async def receipt_edit_menu(
         [
 
             InlineKeyboardButton(
+
                 "🏪 Toko",
+
                 callback_data=(
                     "receipt_edit_merchant"
                 ),
+
             ),
 
             InlineKeyboardButton(
+
                 "📅 Tanggal",
+
                 callback_data=(
                     "receipt_edit_date"
                 ),
+
             ),
 
         ],
@@ -1502,17 +1700,23 @@ async def receipt_edit_menu(
         [
 
             InlineKeyboardButton(
+
                 "💰 Nominal",
+
                 callback_data=(
                     "receipt_edit_amount"
                 ),
+
             ),
 
             InlineKeyboardButton(
+
                 "🏷️ Kategori",
+
                 callback_data=(
                     "receipt_edit_category"
                 ),
+
             ),
 
         ],
@@ -1520,10 +1724,13 @@ async def receipt_edit_menu(
         [
 
             InlineKeyboardButton(
+
                 "↩️ Kembali",
+
                 callback_data=(
                     "receipt_edit_back"
                 ),
+
             ),
 
         ],
@@ -1534,8 +1741,10 @@ async def receipt_edit_menu(
 
         "✏️ *Apa yang ingin diubah?*",
 
-        reply_markup=InlineKeyboardMarkup(
-            keyboard
+        reply_markup=(
+            InlineKeyboardMarkup(
+                keyboard
+            )
         ),
 
         parse_mode="Markdown",
@@ -1544,7 +1753,7 @@ async def receipt_edit_menu(
 
 
 # ============================================================
-# EDIT FIELD MENU
+# EDIT FIELD
 # ============================================================
 
 async def receipt_edit_field(
@@ -1555,6 +1764,7 @@ async def receipt_edit_field(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
@@ -1566,7 +1776,10 @@ async def receipt_edit_field(
     if not pending:
 
         await query.edit_message_text(
-            "❌ Data struk sudah tidak tersedia."
+
+            "❌ Data struk "
+            "sudah tidak tersedia."
+
         )
 
         return
@@ -1643,14 +1856,15 @@ async def receipt_edit_text(
 ):
 
     if not update.message:
+
         return
 
     field = context.user_data.get(
         "editing_receipt_field"
     )
 
-    # Bukan mode edit
     if not field:
+
         return
 
     pending = context.user_data.get(
@@ -1677,7 +1891,9 @@ async def receipt_edit_text(
         if len(value) < 2:
 
             await update.message.reply_text(
+
                 "❌ Nama toko terlalu pendek."
+
             )
 
             return
@@ -1695,9 +1911,13 @@ async def receipt_edit_text(
         parsed_date = None
 
         formats = [
+
             "%d-%m-%Y",
+
             "%d/%m/%Y",
+
             "%d.%m.%Y",
+
         ]
 
         for fmt in formats:
@@ -1857,6 +2077,7 @@ async def receipt_edit_back(
     query = update.callback_query
 
     if not query:
+
         return
 
     await query.answer()
