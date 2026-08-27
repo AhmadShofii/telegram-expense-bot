@@ -2,15 +2,22 @@ from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
+    MessageHandler,
+    filters,
 )
 
 from app.config import TELEGRAM_BOT_TOKEN
 from app.handlers.start import start_command
+from app.handlers.expense import (
+    expense_callback_handler,
+    expense_message,
+)
+from app.handlers.report import daily_report
 from database.db import init_db
 
 
 def main():
-    # Membuat database dan tabel jika belum tersedia
+    # Inisialisasi database
     init_db()
 
     # Membuat aplikasi Telegram
@@ -20,7 +27,7 @@ def main():
         .build()
     )
 
-    # Handler command /start
+    # /start
     application.add_handler(
         CommandHandler(
             "start",
@@ -28,9 +35,32 @@ def main():
         )
     )
 
-    print("🤖 Expense Bot sedang berjalan...")
+    # /hari
+    application.add_handler(
+        CommandHandler(
+            "hari",
+            daily_report,
+        )
+    )
 
-    # Menjalankan bot
+    # Pesan teks pengeluaran
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT
+            & ~filters.COMMAND,
+            expense_message,
+        )
+    )
+
+    # Tombol Simpan / Batal
+    application.add_handler(
+        expense_callback_handler
+    )
+
+    print(
+        "🤖 Expense Bot sedang berjalan..."
+    )
+
     application.run_polling(
         allowed_updates=Update.ALL_TYPES
     )
