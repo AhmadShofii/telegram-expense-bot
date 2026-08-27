@@ -47,6 +47,20 @@ MONTH_NAMES = [
 
 
 # ============================================================
+# CATEGORY ICON
+# ============================================================
+
+CATEGORY_ICONS = {
+    "Makanan": "🍜",
+    "Transportasi": "🚗",
+    "Belanja": "🛒",
+    "Kesehatan": "💊",
+    "Hiburan": "🎮",
+    "Lainnya": "📦",
+}
+
+
+# ============================================================
 # FORMAT RUPIAH
 # ============================================================
 
@@ -60,6 +74,20 @@ def format_rupiah(
     return (
         f"Rp{int(amount):,}"
         .replace(",", ".")
+    )
+
+
+# ============================================================
+# CATEGORY ICON
+# ============================================================
+
+def get_category_icon(
+    category: str,
+) -> str:
+
+    return CATEGORY_ICONS.get(
+        category,
+        "📦",
     )
 
 
@@ -96,6 +124,39 @@ def get_current_month_range():
     return (
         start_date,
         end_date,
+    )
+
+
+# ============================================================
+# PROGRESS BAR
+# ============================================================
+
+def build_progress_bar(
+    percentage: float,
+    length: int = 10,
+) -> str:
+
+    percentage = max(
+        0,
+        min(
+            percentage,
+            100,
+        ),
+    )
+
+    filled = int(
+        percentage
+        / 100
+        * length
+    )
+
+    empty = (
+        length - filled
+    )
+
+    return (
+        "█" * filled
+        + "░" * empty
     )
 
 
@@ -259,7 +320,22 @@ def get_statistics(
         )
 
         # ====================================================
-        # AVERAGE
+        # AVERAGE PER TRANSACTION
+        # ====================================================
+
+        if transaction_count > 0:
+
+            average_per_transaction = (
+                total
+                / transaction_count
+            )
+
+        else:
+
+            average_per_transaction = 0
+
+        # ====================================================
+        # AVERAGE PER ACTIVE DAY
         # ====================================================
 
         if active_days > 0:
@@ -274,81 +350,30 @@ def get_statistics(
             average_per_day = 0
 
         return {
+
             "total": total,
-            "transaction_count": transaction_count,
+
+            "transaction_count": (
+                transaction_count
+            ),
+
             "categories": categories,
+
             "active_days": active_days,
-            "average_per_day": average_per_day,
+
+            "average_per_transaction": (
+                average_per_transaction
+            ),
+
+            "average_per_day": (
+                average_per_day
+            ),
+
         }
 
     finally:
 
         db.close()
-
-
-# ============================================================
-# CATEGORY ICON
-# ============================================================
-
-def get_category_icon(
-    category: str,
-) -> str:
-
-    icons = {
-
-        "Makanan": "🍔",
-
-        "Transportasi": "🚗",
-
-        "Belanja": "🛒",
-
-        "Kesehatan": "💊",
-
-        "Hiburan": "🎮",
-
-        "Lainnya": "📦",
-
-    }
-
-    return icons.get(
-        category,
-        "📦",
-    )
-
-
-# ============================================================
-# PROGRESS BAR
-# ============================================================
-
-def build_progress_bar(
-    percentage: float,
-) -> str:
-
-    percentage = max(
-        0,
-        min(
-            percentage,
-            100,
-        ),
-    )
-
-    total_blocks = 10
-
-    filled = int(
-        percentage
-        / 100
-        * total_blocks
-    )
-
-    empty = (
-        total_blocks
-        - filled
-    )
-
-    return (
-        "█" * filled
-        + "░" * empty
-    )
 
 
 # ============================================================
@@ -381,6 +406,10 @@ def build_statistics_message(
         "active_days"
     ]
 
+    average_per_transaction = data[
+        "average_per_transaction"
+    ]
+
     average_per_day = data[
         "average_per_day"
     ]
@@ -393,16 +422,20 @@ def build_statistics_message(
 
         return (
 
-            "📊 *Statistik Pengeluaran*\n\n"
+            "📊 *STATISTIK PENGELUARAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🗓️ {month_name} "
-            f"{today.year}\n\n"
+            f"📅 *{month_name} "
+            f"{today.year}*\n\n"
+
+            "📭 *Belum ada data*\n\n"
 
             "Belum ada pengeluaran "
-            "pada bulan ini.\n\n"
+            "yang tercatat pada bulan ini.\n\n"
 
             "💡 Mulai catat pengeluaran "
-            "untuk melihat statistik."
+            "untuk melihat statistik "
+            "keuanganmu."
 
         )
 
@@ -412,20 +445,28 @@ def build_statistics_message(
 
     message = (
 
-        "📊 *STATISTIK PENGELUARAN*\n\n"
+        "📊 *STATISTIK PENGELUARAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"🗓️ {month_name} "
-        f"{today.year}\n\n"
+        f"📅 *{month_name} "
+        f"{today.year}*\n\n"
 
-        "💰 *Total Pengeluaran*\n"
-
-        f"{format_rupiah(total)}\n\n"
+        "💸 *Total Pengeluaran*\n"
+        f"*{format_rupiah(total)}*\n\n"
 
         "🧾 *Jumlah Transaksi*\n"
+        f"*{transaction_count} transaksi*\n\n"
 
-        f"{transaction_count} transaksi\n\n"
+        "📈 *Rata-rata / Transaksi*\n"
+        f"{format_rupiah(int(average_per_transaction))}\n\n"
 
-        "📈 *Berdasarkan Kategori*\n"
+        "📅 *Hari Aktif*\n"
+        f"{active_days} hari\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        "🏆 *PENGELUARAN BERDASARKAN "
+        "KATEGORI*\n\n"
 
     )
 
@@ -459,10 +500,10 @@ def build_statistics_message(
 
             f"{icon} *{category}*\n"
 
-            f"{format_rupiah(amount)} "
-            f"({percentage:.1f}%)\n"
+            f"💵 {format_rupiah(amount)}\n"
 
-            f"`{bar}`\n\n"
+            f"`{bar}` "
+            f"*{percentage:.1f}%*\n\n"
 
         )
 
@@ -476,13 +517,25 @@ def build_statistics_message(
             0
         ]
 
+        top_icon = get_category_icon(
+            top_category["category"]
+        )
+
         message += (
 
-            "🏆 *Kategori Terbesar*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"{get_category_icon(top_category['category'])} "
-            f"{top_category['category']} — "
-            f"{format_rupiah(top_category['amount'])}\n\n"
+            "🏆 *KATEGORI TERBESAR*\n\n"
+
+            f"{top_icon} "
+            f"*{top_category['category']}*\n"
+
+            f"💵 "
+            f"{format_rupiah(top_category['amount'])}\n"
+
+            f"📊 "
+            f"{top_category['percentage']:.1f}% "
+            f"dari total pengeluaran\n\n"
 
         )
 
@@ -492,13 +545,19 @@ def build_statistics_message(
 
     message += (
 
-        "💸 *Rata-rata Pengeluaran*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"{format_rupiah(int(average_per_day))} "
-        f"per hari aktif\n\n"
+        "💡 *RINGKASAN*\n\n"
 
-        f"📅 Pengeluaran tercatat "
-        f"selama {active_days} hari."
+        f"💸 Rata-rata per transaksi: "
+        f"{format_rupiah(int(average_per_transaction))}\n"
+
+        f"📅 Rata-rata per hari aktif: "
+        f"{format_rupiah(int(average_per_day))}\n\n"
+
+        "Gunakan grafik untuk melihat "
+        "perbandingan pengeluaran "
+        "berdasarkan kategori."
 
     )
 
@@ -581,20 +640,25 @@ async def statistics_command(
 
         elif update.callback_query:
 
-            await update.callback_query.message.reply_text(
+            if update.callback_query.message:
 
-                message,
+                await (
+                    update.callback_query.message
+                    .reply_text(
 
-                reply_markup=keyboard,
+                        message,
 
-                parse_mode="Markdown",
+                        reply_markup=keyboard,
 
-            )
+                        parse_mode="Markdown",
+
+                    )
+                )
 
     except Exception as error:
 
         print(
-            "Statistics error:"
+            "❌ Statistics error:"
         )
 
         print(
@@ -632,13 +696,19 @@ def create_expense_chart(
         return None
 
     labels = [
+
         item["category"]
+
         for item in categories
+
     ]
 
     values = [
+
         item["amount"]
+
         for item in categories
+
     ]
 
     today = date.today()
@@ -651,9 +721,11 @@ def create_expense_chart(
     # TEMP FILE
     # ========================================================
 
-    temp_file = tempfile.NamedTemporaryFile(
-        suffix=".png",
-        delete=False,
+    temp_file = (
+        tempfile.NamedTemporaryFile(
+            suffix=".png",
+            delete=False,
+        )
     )
 
     chart_path = (
@@ -680,8 +752,11 @@ def create_expense_chart(
     )
 
     axis.set_title(
-        f"Pengeluaran Berdasarkan Kategori\n"
-        f"{month_name} {today.year}"
+
+        f"Pengeluaran Berdasarkan "
+        f"Kategori\n"
+        f"{month_name} {today.year}",
+
     )
 
     axis.set_xlabel(
@@ -706,20 +781,33 @@ def create_expense_chart(
     ):
 
         axis.text(
+
             index,
+
             value,
-            format_rupiah(value),
+
+            format_rupiah(
+                value
+            ),
+
             ha="center",
+
             va="bottom",
+
             fontsize=9,
+
         )
 
     figure.tight_layout()
 
     figure.savefig(
+
         chart_path,
+
         dpi=150,
+
         bbox_inches="tight",
+
     )
 
     plt.close(
@@ -750,6 +838,10 @@ async def statistics_chart_callback(
 
         return
 
+    if not query.message:
+
+        return
+
     user_id = (
         update.effective_user.id
     )
@@ -768,8 +860,13 @@ async def statistics_chart_callback(
 
             await query.message.reply_text(
 
-                "📈 Belum ada data "
-                "untuk dibuat grafik."
+                "📈 *GRAFIK PENGELUARAN*\n\n"
+
+                "📭 Belum ada data "
+                "pengeluaran untuk "
+                "dibuat grafik.",
+
+                parse_mode="Markdown",
 
             )
 
@@ -781,16 +878,27 @@ async def statistics_chart_callback(
             today.month - 1
         ]
 
+        data = get_statistics(
+            user_id
+        )
+
         caption = (
 
-            f"📈 *Grafik Pengeluaran*\n\n"
+            "📈 *GRAFIK PENGELUARAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"{month_name} "
+            f"📅 {month_name} "
             f"{today.year}\n\n"
 
+            f"💸 Total: "
+            f"*{format_rupiah(data['total'])}*\n"
+
+            f"🧾 Transaksi: "
+            f"*{data['transaction_count']}*\n\n"
+
             "Grafik menunjukkan "
-            "total pengeluaran "
-            "berdasarkan kategori."
+            "pengeluaran berdasarkan "
+            "kategori."
 
         )
 
@@ -802,10 +910,13 @@ async def statistics_chart_callback(
             await query.message.reply_photo(
 
                 photo=InputFile(
+
                     chart_file,
+
                     filename=(
                         "expense_chart.png"
                     ),
+
                 ),
 
                 caption=caption,
@@ -817,7 +928,7 @@ async def statistics_chart_callback(
     except Exception as error:
 
         print(
-            "Chart error:"
+            "❌ Chart error:"
         )
 
         print(

@@ -15,145 +15,132 @@ from telegram.ext import (
 # ============================================================
 
 HELP_MESSAGE = """
-📊 *EXPENSE BOT*
+💰 *EXPENSE BOT*
+━━━━━━━━━━━━━━━━━━━━
 
-Bot untuk mencatat dan mengelola
-pengeluaran kamu dengan mudah.
+👋 *Kelola pengeluaranmu dengan mudah.*
+
+Catat transaksi secara manual atau
+gunakan foto struk untuk membantu
+mencatat pengeluaran secara otomatis.
 
 ━━━━━━━━━━━━━━━━━━━━
 
-📌 *CARA PAKAI*
+📝 *CATAT PENGELUARAN*
 
-1️⃣ Kirim foto struk untuk membaca
-   data transaksi secara otomatis.
-
-2️⃣ Atau ketik pengeluaran manual,
-   contoh:
-
-   `Makan siang 25000`
-   `Bensin 50 ribu`
-
-3️⃣ Konfirmasi transaksi sebelum
-   disimpan.
-
-━━━━━━━━━━━━━━━━━━━━
-
-💰 *PENCATATAN*
-
-📝 Kirim teks pengeluaran
-untuk mencatat transaksi manual.
-
-Contoh:
+Ketik langsung:
 
 `Makan siang 25000`
 
-📷 Kirim foto struk
-untuk menggunakan OCR dan
-membaca data transaksi secara otomatis.
+atau:
 
-━━━━━━━━━━━━━━━━━━━━
+`Bensin 50 ribu`
 
-📋 *RIWAYAT*
+Setelah itu periksa data dan tekan
+*✅ Simpan* untuk menyimpan transaksi.
 
-/riwayat
+📷 *SCAN STRUK*
 
-Melihat daftar pengeluaran
-yang sudah tersimpan.
-
-Dari riwayat kamu dapat melihat
-detail, mengedit, atau menghapus
-transaksi.
+Kirim foto struk dan bot akan mencoba
+membaca informasi transaksi secara
+otomatis menggunakan OCR.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📊 *LAPORAN*
 
-/hari
+`/hari`
+Melihat pengeluaran hari ini.
 
-Melihat laporan pengeluaran
-hari ini.
+`/tanggal`
+Melihat pengeluaran berdasarkan tanggal.
 
-/tanggal
+Contoh:
 
-Melihat laporan berdasarkan
-tanggal.
+`/tanggal 27-08-2026`
 
-/bulan
+`/bulan`
+Melihat pengeluaran bulan berjalan.
 
-Melihat laporan pengeluaran
-bulan ini.
+`/rekap`
+Melihat ringkasan pengeluaran
+berdasarkan kategori.
 
-/rekap
+━━━━━━━━━━━━━━━━━━━━
 
-Melihat rekap pengeluaran
-bulan berjalan.
+📋 *RIWAYAT*
+
+`/riwayat`
+
+Melihat transaksi yang sudah tersimpan.
+
+Kamu juga dapat:
+
+• 👁️ Melihat detail
+• ✏️ Mengedit transaksi
+• 🗑️ Menghapus transaksi
 
 ━━━━━━━━━━━━━━━━━━━━
 
 💵 *BUDGET*
 
-/budget
+`/budget`
 
-Melihat dan mengelola budget
-bulan berjalan.
+Mengatur dan melihat budget
+pengeluaran bulan berjalan.
 
-Bot juga akan memberikan
-peringatan ketika penggunaan
-budget mendekati atau melewati
-batas yang ditentukan.
+Bot juga dapat memberikan peringatan
+ketika penggunaan budget mendekati
+atau melewati batas.
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📈 *STATISTIK*
 
-/statistik
+`/statistik`
 
-Melihat statistik pengeluaran
-berdasarkan kategori.
+Melihat analisis pengeluaran:
 
-Statistik dapat menampilkan:
-
-• Total pengeluaran
-• Pengeluaran berdasarkan kategori
-• Persentase kategori
-• Rata-rata pengeluaran
-
-Tekan tombol
-📈 *Lihat Grafik* untuk melihat
-grafik pengeluaran.
+• 💸 Total pengeluaran
+• 🏷️ Pengeluaran per kategori
+• 📊 Persentase kategori
+• 💰 Rata-rata pengeluaran
+• 📈 Grafik pengeluaran
 
 ━━━━━━━━━━━━━━━━━━━━
 
 📤 *EXPORT*
 
-/export
+`/export`
 
 Mengexport laporan pengeluaran
 bulan berjalan dalam format CSV.
 
-File dapat dibuka menggunakan
-Microsoft Excel atau aplikasi
-spreadsheet lainnya.
+File dapat dibuka menggunakan:
+
+• Microsoft Excel
+• Google Sheets
+• Aplikasi spreadsheet lainnya
 
 ━━━━━━━━━━━━━━━━━━━━
 
 🔔 *DAILY REMINDER*
 
-/reminder
+`/reminder`
 
-Mengatur pengingat pencatatan
-pengeluaran setiap hari.
+Atur pengingat pencatatan pengeluaran
+setiap hari.
 
-Tersedia pilihan waktu:
+Pilihan waktu:
 
-• 07:00
-• 08:00
-• 09:00
-• 12:00
-• 18:00
-• 19:00
-• 20:00
-• 21:00
+• 🌅 07:00
+• ☀️ 08:00
+• ☀️ 09:00
+• 🍽️ 12:00
+• 🌆 18:00
+• 🌆 19:00
+• 🌙 20:00
+• 🌙 21:00
 
 Reminder dapat:
 
@@ -163,18 +150,15 @@ Reminder dapat:
 
 ━━━━━━━━━━━━━━━━━━━━
 
-ℹ️ *LAINNYA*
+🚀 *PERINTAH UTAMA*
 
-/start
+`/start`
+Memulai menggunakan bot.
 
-Memulai bot.
-
-/menu
-
+`/menu`
 Menampilkan menu utama.
 
-/bantuan
-
+`/bantuan`
 Menampilkan panduan penggunaan.
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -183,10 +167,14 @@ Menampilkan panduan penggunaan.
 
 • Catat pengeluaran segera setelah transaksi.
 • Gunakan foto struk untuk pencatatan otomatis.
-• Gunakan /budget untuk mengontrol pengeluaran.
-• Gunakan /statistik untuk melihat pola pengeluaran.
-• Gunakan /export untuk menyimpan laporan.
-• Aktifkan /reminder agar tidak lupa mencatat.
+• Gunakan `/budget` untuk mengontrol pengeluaran.
+• Gunakan `/statistik` untuk melihat pola pengeluaran.
+• Gunakan `/export` untuk menyimpan laporan.
+• Aktifkan `/reminder` agar tidak lupa mencatat.
+
+━━━━━━━━━━━━━━━━━━━━
+
+✨ *Selamat mengelola keuangan!*
 """
 
 
@@ -200,10 +188,9 @@ def build_help_keyboard():
 
         [
             InlineKeyboardButton(
-                "💰 Budget",
+                "💵 Budget",
                 callback_data="help_budget",
             ),
-
             InlineKeyboardButton(
                 "📈 Statistik",
                 callback_data="help_statistics",
@@ -215,7 +202,6 @@ def build_help_keyboard():
                 "📋 Riwayat",
                 callback_data="help_history",
             ),
-
             InlineKeyboardButton(
                 "📤 Export",
                 callback_data="help_export",
@@ -246,7 +232,6 @@ async def menu_command(
 ):
 
     if not update.message:
-
         return
 
     await update.message.reply_text(
@@ -272,7 +257,6 @@ async def bantuan_command(
 ):
 
     if not update.message:
-
         return
 
     await update.message.reply_text(
@@ -300,7 +284,6 @@ async def help_callback(
     query = update.callback_query
 
     if not query:
-
         return
 
     await query.answer()
@@ -313,21 +296,24 @@ async def help_callback(
 
         await query.message.reply_text(
 
-            "💵 *BUDGET*\n\n"
+            "💵 *BUDGET*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "/budget\n\n"
+            "`/budget`\n\n"
 
-            "Melihat dan mengelola budget "
-            "bulan berjalan.\n\n"
+            "Atur batas pengeluaran "
+            "untuk bulan berjalan.\n\n"
 
-            "Budget dapat digunakan untuk "
-            "mengontrol jumlah pengeluaran "
+            "Dengan budget kamu dapat "
+            "memantau penggunaan uang "
             "selama satu bulan.\n\n"
 
-            "Bot juga dapat memberikan "
-            "peringatan ketika penggunaan "
-            "budget mendekati atau melewati "
-            "batas.",
+            "Bot akan memberikan peringatan "
+            "ketika penggunaan budget "
+            "mendekati atau melewati batas.\n\n"
+
+            "💡 Cocok digunakan untuk "
+            "mengontrol pengeluaran bulanan.",
 
             parse_mode="Markdown",
 
@@ -343,22 +329,25 @@ async def help_callback(
 
         await query.message.reply_text(
 
-            "📈 *STATISTIK*\n\n"
+            "📈 *STATISTIK*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "/statistik\n\n"
+            "`/statistik`\n\n"
 
-            "Melihat statistik pengeluaran "
+            "Melihat analisis pengeluaran "
             "berdasarkan kategori.\n\n"
 
-            "Informasi yang tersedia:\n"
+            "📊 Informasi yang tersedia:\n\n"
 
-            "• Total pengeluaran\n"
-            "• Kategori pengeluaran\n"
-            "• Persentase kategori\n"
-            "• Rata-rata pengeluaran\n\n"
+            "• 💸 Total pengeluaran\n"
+            "• 🏷️ Pengeluaran berdasarkan kategori\n"
+            "• 📊 Persentase kategori\n"
+            "• 💰 Rata-rata pengeluaran\n"
+            "• 📈 Grafik pengeluaran\n\n"
 
-            "Tekan tombol 📈 *Lihat Grafik* "
-            "untuk melihat grafik pengeluaran.",
+            "Gunakan fitur ini untuk melihat "
+            "pola pengeluaran kamu dengan "
+            "lebih mudah.",
 
             parse_mode="Markdown",
 
@@ -374,18 +363,23 @@ async def help_callback(
 
         await query.message.reply_text(
 
-            "📋 *RIWAYAT*\n\n"
+            "📋 *RIWAYAT PENGELUARAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "/riwayat\n\n"
+            "`/riwayat`\n\n"
 
-            "Melihat daftar transaksi "
+            "Melihat transaksi pengeluaran "
             "yang sudah tersimpan.\n\n"
 
             "Dari riwayat kamu dapat:\n\n"
 
-            "• Melihat detail transaksi\n"
-            "• Mengedit transaksi\n"
-            "• Menghapus transaksi",
+            "• 👁️ Melihat detail transaksi\n"
+            "• ✏️ Mengedit transaksi\n"
+            "• 🗑️ Menghapus transaksi\n\n"
+
+            "💡 Gunakan riwayat untuk "
+            "memeriksa kembali transaksi "
+            "yang sudah dicatat.",
 
             parse_mode="Markdown",
 
@@ -401,18 +395,23 @@ async def help_callback(
 
         await query.message.reply_text(
 
-            "📤 *EXPORT*\n\n"
+            "📤 *EXPORT LAPORAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "/export\n\n"
+            "`/export`\n\n"
 
-            "Membuat laporan pengeluaran "
+            "Menghasilkan laporan pengeluaran "
             "bulan berjalan dalam format CSV.\n\n"
 
-            "File dapat dibuka menggunakan:\n\n"
+            "📄 File dapat dibuka menggunakan:\n\n"
 
             "• Microsoft Excel\n"
             "• Google Sheets\n"
-            "• Aplikasi spreadsheet lainnya",
+            "• Aplikasi spreadsheet lainnya\n\n"
+
+            "💡 Cocok untuk menyimpan atau "
+            "mengolah data pengeluaran "
+            "di luar Telegram.",
 
             parse_mode="Markdown",
 
@@ -428,29 +427,35 @@ async def help_callback(
 
         await query.message.reply_text(
 
-            "🔔 *DAILY REMINDER*\n\n"
+            "🔔 *DAILY REMINDER*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "/reminder\n\n"
+            "`/reminder`\n\n"
 
-            "Mengatur pengingat pencatatan "
+            "Atur pengingat agar kamu "
+            "tidak lupa mencatat "
             "pengeluaran setiap hari.\n\n"
 
-            "Pilihan waktu:\n\n"
+            "⏰ Pilihan waktu:\n\n"
 
-            "• 07:00\n"
-            "• 08:00\n"
-            "• 09:00\n"
-            "• 12:00\n"
-            "• 18:00\n"
-            "• 19:00\n"
-            "• 20:00\n"
-            "• 21:00\n\n"
+            "• 🌅 07:00\n"
+            "• ☀️ 08:00\n"
+            "• ☀️ 09:00\n"
+            "• 🍽️ 12:00\n"
+            "• 🌆 18:00\n"
+            "• 🌆 19:00\n"
+            "• 🌙 20:00\n"
+            "• 🌙 21:00\n\n"
 
             "Reminder dapat:\n\n"
 
-            "⏰ Diaktifkan\n"
+            "🟢 Diaktifkan\n"
             "📋 Dilihat statusnya\n"
-            "🔕 Dimatikan",
+            "🔕 Dimatikan\n\n"
+
+            "💡 Pengaturan reminder akan "
+            "tetap tersimpan meskipun bot "
+            "di-restart.",
 
             parse_mode="Markdown",
 

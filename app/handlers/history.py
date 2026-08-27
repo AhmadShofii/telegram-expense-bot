@@ -87,8 +87,7 @@ def get_expenses(
         ).all()
 
         has_next = (
-            len(expenses)
-            > PER_PAGE
+            len(expenses) > PER_PAGE
         )
 
         return (
@@ -111,8 +110,17 @@ def build_history_message(
 ) -> str:
 
     message = (
-        "📋 *Riwayat Pengeluaran*\n\n"
+        "📋 *RIWAYAT PENGELUARAN*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
     )
+
+    if not expenses:
+
+        message += (
+            "📭 Belum ada transaksi."
+        )
+
+        return message
 
     start_number = (
         page * PER_PAGE
@@ -122,6 +130,20 @@ def build_history_message(
         expenses,
         start=start_number,
     ):
+
+        description = (
+            expense.description
+            or "Transaksi"
+        )
+
+        category = (
+            expense.category
+            or "Lainnya"
+        )
+
+        icon = category_icon(
+            category
+        )
 
         if expense.expense_date:
 
@@ -135,31 +157,21 @@ def build_history_message(
 
             date_text = "--"
 
-        icon = category_icon(
-            expense.category
-        )
-
-        description = (
-            expense.description
-            or "Transaksi"
-        )
-
         message += (
 
-            f"*{index}. "
-            f"{icon} {description}*\n"
+            f"*{index}. {icon} {description}*\n"
 
-            f"   📅 {date_text}\n"
+            f"   💵 *{format_rupiah(expense.amount)}*\n"
 
-            f"   💰 "
-            f"{format_rupiah(expense.amount)}\n"
+            f"   🏷️ {category}\n"
 
-            f"   🏷️ {expense.category}\n\n"
+            f"   📅 {date_text}\n\n"
 
         )
 
     message += (
-        f"📄 Halaman {page + 1}"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📄 Halaman *{page + 1}*"
     )
 
     return message
@@ -177,9 +189,9 @@ def build_history_keyboard(
 
     keyboard = []
 
-    # --------------------------------------------------------
+    # ========================================================
     # DETAIL BUTTON
-    # --------------------------------------------------------
+    # ========================================================
 
     for expense in expenses:
 
@@ -188,12 +200,16 @@ def build_history_keyboard(
             or "Transaksi"
         )
 
-        if len(description) > 20:
+        if len(description) > 18:
 
             description = (
-                description[:20]
+                description[:18]
                 + "..."
             )
+
+        icon = category_icon(
+            expense.category
+        )
 
         keyboard.append(
 
@@ -201,7 +217,7 @@ def build_history_keyboard(
 
                 InlineKeyboardButton(
 
-                    f"🔎 {description}",
+                    f"{icon} {description}",
 
                     callback_data=(
                         f"expense_detail_"
@@ -215,9 +231,9 @@ def build_history_keyboard(
 
         )
 
-    # --------------------------------------------------------
+    # ========================================================
     # PAGINATION
-    # --------------------------------------------------------
+    # ========================================================
 
     navigation = []
 
@@ -244,7 +260,7 @@ def build_history_keyboard(
 
             InlineKeyboardButton(
 
-                "➡️ Berikutnya",
+                "Berikutnya ➡️",
 
                 callback_data=(
                     f"history_page_"
@@ -296,7 +312,7 @@ async def show_history(
     )
 
     # ========================================================
-    # EMPTY
+    # PAGE EMPTY
     # ========================================================
 
     if not expenses:
@@ -313,9 +329,15 @@ async def show_history(
 
         message = (
 
-            "📋 *Riwayat Pengeluaran*\n\n"
+            "📋 *RIWAYAT PENGELUARAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            "Belum ada transaksi."
+            "📭 Belum ada transaksi.\n\n"
+
+            "💡 Mulai mencatat pengeluaran "
+            "dengan mengirim pesan seperti:\n\n"
+
+            "`Makan siang 25000`"
 
         )
 
@@ -460,9 +482,7 @@ async def expense_detail(
 
     try:
 
-        parts = query.data.split(
-            "_"
-        )
+        parts = query.data.split("_")
 
         # expense_detail_ID_PAGE
         expense_id = int(
@@ -528,6 +548,15 @@ async def expense_detail(
 
             date_text = "--"
 
+        category = (
+            expense.category
+            or "Lainnya"
+        )
+
+        icon = category_icon(
+            category
+        )
+
         # ====================================================
         # ITEMS
         # ====================================================
@@ -553,26 +582,32 @@ async def expense_detail(
 
         message = (
 
-            "🧾 *Detail Transaksi*\n\n"
+            "🧾 *DETAIL TRANSAKSI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🏪 *Toko:* "
-            f"{expense.description}\n"
+            f"🏪 *Toko*\n"
+            f"{expense.description}\n\n"
 
-            f"📅 *Tanggal:* "
-            f"{date_text}\n"
+            f"💵 *Total*\n"
+            f"{format_rupiah(expense.amount)}\n\n"
 
-            f"💰 *Total:* "
-            f"{format_rupiah(expense.amount)}\n"
+            f"{icon} *Kategori*\n"
+            f"{category}\n\n"
 
-            f"🏷️ *Kategori:* "
-            f"{expense.category}\n\n"
+            f"📅 *Tanggal*\n"
+            f"{date_text}\n\n"
 
         )
+
+        # ====================================================
+        # ITEMS
+        # ====================================================
 
         if items:
 
             message += (
-                "🛍️ *Item:*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🛍️ *DAFTAR ITEM*\n\n"
             )
 
             for item in items:
@@ -596,9 +631,9 @@ async def expense_detail(
 
                     message += (
 
-                        f"• {item_name} "
-                        f"x{quantity} — "
-                        f"{format_rupiah(item_amount)}\n"
+                        f"• {item_name}\n"
+                        f"  x{quantity} — "
+                        f"{format_rupiah(item_amount)}\n\n"
 
                     )
 
@@ -606,8 +641,8 @@ async def expense_detail(
 
                     message += (
 
-                        f"• {item_name} — "
-                        f"{format_rupiah(item_amount)}\n"
+                        f"• {item_name}\n"
+                        f"  {format_rupiah(item_amount)}\n\n"
 
                     )
 
@@ -615,9 +650,9 @@ async def expense_detail(
 
             message += (
 
-                "🛍️ *Item:*\n"
-
-                "Tidak ada detail item."
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🛍️ *DAFTAR ITEM*\n\n"
+                "Tidak ada detail item.\n"
 
             )
 
@@ -641,10 +676,6 @@ async def expense_detail(
 
                 ),
 
-            ],
-
-            [
-
                 InlineKeyboardButton(
 
                     "🗑️ Hapus",
@@ -663,7 +694,7 @@ async def expense_detail(
 
                 InlineKeyboardButton(
 
-                    "⬅️ Kembali",
+                    "⬅️ Kembali ke Riwayat",
 
                     callback_data=(
                         f"history_back_"
@@ -751,9 +782,7 @@ async def edit_expense_menu(
 
     try:
 
-        parts = query.data.split(
-            "_"
-        )
+        parts = query.data.split("_")
 
         # expense_edit_ID_PAGE
         expense_id = int(
@@ -815,16 +844,20 @@ async def edit_expense_menu(
             "editing_expense_page"
         ] = page
 
+        icon = category_icon(
+            expense.category
+        )
+
         message = (
 
-            "✏️ *Edit Transaksi*\n\n"
+            "✏️ *EDIT TRANSAKSI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
             f"🏪 {expense.description}\n"
+            f"💵 {format_rupiah(expense.amount)}\n"
+            f"{icon} {expense.category}\n\n"
 
-            f"💰 "
-            f"{format_rupiah(expense.amount)}\n"
-
-            f"🏷️ {expense.category}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
             "Pilih data yang ingin diubah:"
 
@@ -837,16 +870,14 @@ async def edit_expense_menu(
                 InlineKeyboardButton(
                     "🏪 Toko",
                     callback_data=(
-                        f"edit_field_"
-                        f"merchant"
+                        "edit_field_merchant"
                     ),
                 ),
 
                 InlineKeyboardButton(
                     "📅 Tanggal",
                     callback_data=(
-                        f"edit_field_"
-                        f"date"
+                        "edit_field_date"
                     ),
                 ),
 
@@ -855,18 +886,16 @@ async def edit_expense_menu(
             [
 
                 InlineKeyboardButton(
-                    "💰 Nominal",
+                    "💵 Nominal",
                     callback_data=(
-                        f"edit_field_"
-                        f"amount"
+                        "edit_field_amount"
                     ),
                 ),
 
                 InlineKeyboardButton(
                     "🏷️ Kategori",
                     callback_data=(
-                        f"edit_field_"
-                        f"category"
+                        "edit_field_category"
                     ),
                 ),
 
@@ -877,8 +906,7 @@ async def edit_expense_menu(
                 InlineKeyboardButton(
                     "⬅️ Kembali",
                     callback_data=(
-                        f"history_back_"
-                        f"{page}"
+                        f"history_back_{page}"
                     ),
                 ),
 
@@ -947,10 +975,12 @@ async def select_edit_field(
     )
 
     valid_fields = [
+
         "merchant",
         "date",
         "amount",
         "category",
+
     ]
 
     if field not in valid_fields:
@@ -971,7 +1001,7 @@ async def select_edit_field(
 
         "date": "📅 Tanggal",
 
-        "amount": "💰 Nominal",
+        "amount": "💵 Nominal",
 
         "category": "🏷️ Kategori",
 
@@ -985,12 +1015,15 @@ async def select_edit_field(
 
         "date": (
             "Kirim tanggal baru.\n\n"
-            "Format: `25-07-2026`"
+            "Format:\n"
+            "`25-07-2026`"
         ),
 
         "amount": (
             "Kirim nominal baru.\n\n"
-            "Contoh: `25000`"
+            "Contoh:\n"
+            "`25000`\n"
+            "`25.000`"
         ),
 
         "category": (
@@ -998,12 +1031,12 @@ async def select_edit_field(
             "Kirim kategori baru.\n\n"
 
             "Pilihan:\n"
-            "• Makanan\n"
-            "• Transportasi\n"
-            "• Belanja\n"
-            "• Kesehatan\n"
-            "• Hiburan\n"
-            "• Lainnya"
+            "🍜 Makanan\n"
+            "🚗 Transportasi\n"
+            "🛒 Belanja\n"
+            "💊 Kesehatan\n"
+            "🎮 Hiburan\n"
+            "📦 Lainnya"
 
         ),
 
@@ -1011,10 +1044,14 @@ async def select_edit_field(
 
     message = (
 
-        f"✏️ *Edit "
-        f"{field_names[field]}*\n\n"
+        f"✏️ *EDIT {field_names[field].upper()}*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        f"{instruction[field]}"
+        f"{instruction[field]}\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━\n"
+
+        "Kirim nilai baru melalui chat."
 
     )
 
@@ -1027,8 +1064,7 @@ async def select_edit_field(
                 "❌ Batal",
 
                 callback_data=(
-                    f"edit_cancel_"
-                    f"{page}"
+                    f"edit_cancel_{page}"
                 ),
 
             ),
@@ -1112,14 +1148,14 @@ async def edit_expense_text(
 
     elif field == "date":
 
+        from datetime import datetime
+
         parsed_date = None
 
         formats = [
 
             "%d-%m-%Y",
-
             "%d/%m/%Y",
-
             "%d.%m.%Y",
 
         ]
@@ -1129,15 +1165,10 @@ async def edit_expense_text(
             try:
 
                 parsed_date = (
-                    __import__(
-                        "datetime"
-                    )
-                    .datetime
-                    .strptime(
+                    datetime.strptime(
                         value,
                         date_format,
-                    )
-                    .date()
+                    ).date()
                 )
 
                 break
@@ -1170,24 +1201,15 @@ async def edit_expense_text(
     elif field == "amount":
 
         clean_value = (
+
             value
-            .replace(
-                "Rp",
-                "",
-            )
-            .replace(
-                "rp",
-                "",
-            )
-            .replace(
-                ".",
-                "",
-            )
-            .replace(
-                ",",
-                "",
-            )
+
+            .replace("Rp", "")
+            .replace("rp", "")
+            .replace(".", "")
+            .replace(",", "")
             .strip()
+
         )
 
         if not clean_value.isdigit():
@@ -1213,7 +1235,9 @@ async def edit_expense_text(
         if value <= 0:
 
             await update.message.reply_text(
+
                 "❌ Nominal harus lebih dari 0."
+
             )
 
             return True
@@ -1227,15 +1251,10 @@ async def edit_expense_text(
         categories = [
 
             "Makanan",
-
             "Transportasi",
-
             "Belanja",
-
             "Kesehatan",
-
             "Hiburan",
-
             "Lainnya",
 
         ]
@@ -1262,13 +1281,12 @@ async def edit_expense_text(
                 "❌ Kategori tidak valid.\n\n"
 
                 "Pilih:\n"
-
-                "• Makanan\n"
-                "• Transportasi\n"
-                "• Belanja\n"
-                "• Kesehatan\n"
-                "• Hiburan\n"
-                "• Lainnya"
+                "🍜 Makanan\n"
+                "🚗 Transportasi\n"
+                "🛒 Belanja\n"
+                "💊 Kesehatan\n"
+                "🎮 Hiburan\n"
+                "📦 Lainnya"
 
             )
 
@@ -1333,7 +1351,7 @@ async def edit_expense_text(
         db.commit()
 
         # ====================================================
-        # CLEAR EDIT STATE
+        # CLEAR STATE
         # ====================================================
 
         context.user_data.pop(
@@ -1369,12 +1387,14 @@ async def edit_expense_text(
 
             expense_id,
 
+            page,
+
         )
 
     except Exception as error:
 
         print(
-            "Edit expense error:"
+            "❌ Edit expense error:"
         )
 
         print(
@@ -1404,6 +1424,7 @@ async def edit_expense_text(
 async def send_expense_detail(
     update: Update,
     expense_id: int,
+    page: int = 0,
 ):
 
     if not update.effective_user:
@@ -1446,6 +1467,15 @@ async def send_expense_detail(
 
             date_text = "--"
 
+        category = (
+            expense.category
+            or "Lainnya"
+        )
+
+        icon = category_icon(
+            category
+        )
+
         item_statement = (
             select(ExpenseItem)
             .where(
@@ -1463,26 +1493,28 @@ async def send_expense_detail(
 
         message = (
 
-            "🧾 *Detail Transaksi*\n\n"
+            "🧾 *DETAIL TRANSAKSI*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🏪 *Toko:* "
-            f"{expense.description}\n"
+            f"🏪 *Toko*\n"
+            f"{expense.description}\n\n"
 
-            f"📅 *Tanggal:* "
-            f"{date_text}\n"
+            f"💵 *Total*\n"
+            f"{format_rupiah(expense.amount)}\n\n"
 
-            f"💰 *Total:* "
-            f"{format_rupiah(expense.amount)}\n"
+            f"{icon} *Kategori*\n"
+            f"{category}\n\n"
 
-            f"🏷️ *Kategori:* "
-            f"{expense.category}\n\n"
+            f"📅 *Tanggal*\n"
+            f"{date_text}\n\n"
 
         )
 
         if items:
 
             message += (
-                "🛍️ *Item:*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🛍️ *DAFTAR ITEM*\n\n"
             )
 
             for item in items:
@@ -1502,30 +1534,31 @@ async def send_expense_detail(
                     or 0
                 )
 
-                message += (
-
-                    f"• {item_name}"
-
-                )
-
                 if quantity > 1:
 
                     message += (
-                        f" x{quantity}"
+
+                        f"• {item_name} "
+                        f"x{quantity} — "
+                        f"{format_rupiah(item_amount)}\n"
+
                     )
 
-                message += (
+                else:
 
-                    " — "
-                    f"{format_rupiah(item_amount)}\n"
+                    message += (
 
-                )
+                        f"• {item_name} — "
+                        f"{format_rupiah(item_amount)}\n"
+
+                    )
 
         else:
 
             message += (
 
-                "🛍️ *Item:*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🛍️ *DAFTAR ITEM*\n\n"
 
                 "Tidak ada detail item."
 
@@ -1541,7 +1574,8 @@ async def send_expense_detail(
 
                     callback_data=(
                         f"expense_edit_"
-                        f"{expense.id}_0"
+                        f"{expense.id}_"
+                        f"{page}"
                     ),
 
                 ),
@@ -1552,7 +1586,8 @@ async def send_expense_detail(
 
                     callback_data=(
                         f"expense_delete_"
-                        f"{expense.id}_0"
+                        f"{expense.id}_"
+                        f"{page}"
                     ),
 
                 ),
@@ -1566,7 +1601,7 @@ async def send_expense_detail(
                     "📋 Riwayat",
 
                     callback_data=(
-                        "history_page_0"
+                        f"history_page_{page}"
                     ),
 
                 ),
@@ -1667,9 +1702,7 @@ async def delete_expense_confirmation(
 
     try:
 
-        parts = query.data.split(
-            "_"
-        )
+        parts = query.data.split("_")
 
         expense_id = int(
             parts[2]
@@ -1726,6 +1759,15 @@ async def delete_expense_confirmation(
 
             return
 
+        category = (
+            expense.category
+            or "Lainnya"
+        )
+
+        icon = category_icon(
+            category
+        )
+
         if expense.expense_date:
 
             date_text = (
@@ -1740,19 +1782,21 @@ async def delete_expense_confirmation(
 
         message = (
 
-            "⚠️ *Konfirmasi Penghapusan*\n\n"
+            "⚠️ *KONFIRMASI PENGHAPUSAN*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🏪 *{expense.description}*\n"
+            f"{icon} *{expense.description}*\n\n"
 
-            f"📅 {date_text}\n"
+            f"💵 {format_rupiah(expense.amount)}\n"
+            f"🏷️ {category}\n"
+            f"📅 {date_text}\n\n"
 
-            f"💰 "
-            f"{format_rupiah(expense.amount)}\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            f"🏷️ {expense.category}\n\n"
+            "⚠️ Transaksi yang dihapus "
+            "tidak dapat dikembalikan.\n\n"
 
-            "Yakin ingin menghapus "
-            "transaksi ini?"
+            "*Yakin ingin menghapus transaksi ini?*"
 
         )
 
@@ -1762,7 +1806,7 @@ async def delete_expense_confirmation(
 
                 InlineKeyboardButton(
 
-                    "✅ Ya, Hapus",
+                    "🗑️ Ya, Hapus",
 
                     callback_data=(
                         f"expense_confirm_delete_"
@@ -1825,9 +1869,7 @@ async def delete_expense(
 
     try:
 
-        parts = query.data.split(
-            "_"
-        )
+        parts = query.data.split("_")
 
         expense_id = int(
             parts[3]
@@ -1900,16 +1942,22 @@ async def delete_expense(
 
         await query.edit_message_text(
 
-            "✅ *Transaksi berhasil dihapus!*\n\n"
+            "✅ *TRANSAKSI BERHASIL DIHAPUS*\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
 
             f"🏪 {description}\n"
+            f"💵 {format_rupiah(amount)}\n\n"
 
-            f"💰 "
-            f"{format_rupiah(amount)}",
+            "Transaksi telah dihapus "
+            "dari riwayat.",
 
             parse_mode="Markdown",
 
         )
+
+        # ====================================================
+        # SHOW UPDATED HISTORY
+        # ====================================================
 
         expenses, has_next = (
             get_expenses(
@@ -1961,8 +2009,10 @@ async def delete_expense(
 
             await query.message.reply_text(
 
-                "📋 *Riwayat Pengeluaran*\n\n"
-                "Belum ada transaksi.",
+                "📋 *RIWAYAT PENGELUARAN*\n"
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                "📭 Belum ada transaksi.",
 
                 parse_mode="Markdown",
 
@@ -1971,7 +2021,7 @@ async def delete_expense(
     except Exception as error:
 
         print(
-            "Delete expense error:"
+            "❌ Delete expense error:"
         )
 
         print(
