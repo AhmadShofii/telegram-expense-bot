@@ -35,7 +35,7 @@ from app.handlers.budget import (
 
 
 # ============================================================
-# TESSERACT CONFIGURATION
+# TESSERACT
 # ============================================================
 
 pytesseract.pytesseract.tesseract_cmd = (
@@ -54,9 +54,9 @@ def format_rupiah(
     if amount is None:
         amount = 0
 
-    return f"Rp{int(amount):,}".replace(
-        ",",
-        ".",
+    return (
+        f"Rp{int(amount):,}"
+        .replace(",", ".")
     )
 
 
@@ -71,7 +71,7 @@ def normalize_amount(
     if not value:
         return None
 
-    value = value.strip()
+    value = str(value).strip()
 
     value = re.sub(
         r"[^\d.,]",
@@ -82,6 +82,7 @@ def normalize_amount(
     if not value:
         return None
 
+    # 28.000 / 28,000
     if "." in value:
 
         parts = value.split(".")
@@ -120,7 +121,7 @@ def normalize_amount(
 
 
 # ============================================================
-# IMAGE PREPROCESSING
+# PREPROCESS IMAGE
 # ============================================================
 
 def preprocess_image(
@@ -144,13 +145,9 @@ def preprocess_image(
         )
     )
 
-    enhancer = ImageEnhance.Contrast(
+    image = ImageEnhance.Contrast(
         image
-    )
-
-    image = enhancer.enhance(
-        2.0
-    )
+    ).enhance(2.0)
 
     image = image.filter(
         ImageFilter.SHARPEN
@@ -197,17 +194,17 @@ def extract_total(
         r"(?:rp|idr)?\s*"
         r"([\d.,]+)",
 
+        r"(?:nominal\s+transaksi)"
+        r"\s*:?\s*"
+        r"(?:rp|idr)?\s*"
+        r"([\d.,]+)",
+
         r"(?:total)"
         r"\s*:?\s*"
         r"(?:rp|idr)?\s*"
         r"([\d.,]+)",
 
         r"(?:jumlah)"
-        r"\s*:?\s*"
-        r"(?:rp|idr)?\s*"
-        r"([\d.,]+)",
-
-        r"(?:nominal\s+transaksi)"
         r"\s*:?\s*"
         r"(?:rp|idr)?\s*"
         r"([\d.,]+)",
@@ -243,10 +240,19 @@ def extract_total(
 
         return max(amounts)
 
+    # ========================================================
+    # FALLBACK RP
+    # ========================================================
+
     rp_matches = re.findall(
-        r"\b(?:rp|idr)\s*([\d.,]+)",
+
+        r"\b(?:rp|idr)\s*"
+        r"([\d.,]+)",
+
         text,
+
         re.IGNORECASE,
+
     )
 
     for value in rp_matches:
@@ -301,7 +307,7 @@ def is_valid_merchant(
         return False
 
     if re.fullmatch(
-        r"(rp|idr)?\s*[\d.,]+",
+        r"(?:rp|idr)?\s*[\d.,]+",
         value,
         re.IGNORECASE,
     ):
@@ -347,17 +353,19 @@ def extract_merchant(
     ]
 
     labels = [
+
         "penerima",
         "merchant",
         "toko",
         "store",
         "outlet",
         "recipient",
+
     ]
 
-    # --------------------------------------------------------
-    # Berdasarkan label
-    # --------------------------------------------------------
+    # ========================================================
+    # LABEL
+    # ========================================================
 
     for index, line in enumerate(
         lines
@@ -383,49 +391,38 @@ def extract_merchant(
 
                     return candidate
 
-    # --------------------------------------------------------
-    # Fallback
-    # --------------------------------------------------------
+    # ========================================================
+    # FALLBACK
+    # ========================================================
 
     ignored_keywords = [
 
         "pembayaran",
         "berhasil",
-
         "lihat",
         "resi",
-
         "bagikan",
-
         "bayar",
         "sekarang",
-
         "dalam genggaman",
-
         "total",
         "jumlah",
         "grand total",
-
         "subtotal",
         "sub total",
-
         "nominal transaksi",
-
         "tanggal",
         "date",
-
         "waktu",
         "time",
-
         "jakarta",
         "indonesia",
-
         "rp",
         "idr",
 
     ]
 
-    for line in lines[:15]:
+    for line in lines[:20]:
 
         lower_line = (
             line.lower()
@@ -440,15 +437,6 @@ def extract_merchant(
 
         if not re.search(
             r"[A-Za-z]",
-            line,
-        ):
-
-            continue
-
-        if re.search(
-            r"\d{1,2}"
-            r"\s+[A-Za-z]+"
-            r"\s+\d{4}",
             line,
         ):
 
@@ -480,26 +468,20 @@ def extract_date(
     text: str,
 ):
 
-    # --------------------------------------------------------
+    # ========================================================
     # 25/07/2026
     # 25-07-2026
     # 25.07.2026
-    # --------------------------------------------------------
+    # ========================================================
 
     numeric_pattern = (
 
         r"\b"
-
         r"(\d{1,2})"
-
         r"[\/\-.]"
-
         r"(\d{1,2})"
-
         r"[\/\-.]"
-
         r"(\d{2,4})"
-
         r"\b"
 
     )
@@ -540,10 +522,10 @@ def extract_date(
 
             pass
 
-    # --------------------------------------------------------
+    # ========================================================
     # 25 Jul 2026
     # 25 July 2026
-    # --------------------------------------------------------
+    # ========================================================
 
     month_map = {
 
@@ -599,17 +581,11 @@ def extract_date(
     month_pattern = (
 
         r"\b"
-
         r"(\d{1,2})"
-
         r"\s+"
-
         r"([A-Za-z]+)"
-
         r"\s+"
-
         r"(\d{4})"
-
         r"\b"
 
     )
@@ -805,46 +781,29 @@ def extract_items(
         "total",
         "grand total",
         "jumlah",
-
         "subtotal",
         "sub total",
-
         "pajak",
         "tax",
-
         "service",
-
         "diskon",
         "discount",
-
         "kembalian",
-
         "cash",
         "tunai",
-
         "bayar",
         "pembayaran",
-
         "berhasil",
-
         "resi",
-
         "bagikan",
-
         "jakarta",
-
         "alamat",
-
         "tel",
         "phone",
-
         "tanggal",
         "waktu",
-
         "payment",
-
         "penerima",
-
         "nominal transaksi",
 
     ]
@@ -852,13 +811,9 @@ def extract_items(
     amount_pattern = re.compile(
 
         r"^(.+?)"
-
         r"\s+"
-
         r"(?:Rp|IDR)?\s*"
-
         r"(\d[\d.,]*)"
-
         r"\s*$",
 
         re.IGNORECASE,
@@ -1107,10 +1062,6 @@ async def show_receipt_confirmation(
             "Tidak terdeteksi\n"
         )
 
-    # ========================================================
-    # MESSAGE
-    # ========================================================
-
     message = (
 
         "🧾 *Data Struk*\n\n"
@@ -1202,7 +1153,7 @@ async def show_receipt_confirmation(
 
 
 # ============================================================
-# PHOTO HANDLER
+# RECEIPT PHOTO
 # ============================================================
 
 async def receipt_photo(
@@ -1328,7 +1279,7 @@ async def receipt_photo(
             return
 
         # ====================================================
-        # SAVE PENDING RECEIPT
+        # PENDING RECEIPT
         # ====================================================
 
         context.user_data[
@@ -1504,7 +1455,7 @@ async def receipt_callback(
             )
 
             # =================================================
-            # SAVE ITEMS
+            # ITEMS
             # =================================================
 
             for item_data in pending[
@@ -1544,7 +1495,7 @@ async def receipt_callback(
             )
 
             # =================================================
-            # DELETE TEMP IMAGE
+            # DELETE TEMP FILE
             # =================================================
 
             image_path = pending.get(
@@ -1568,11 +1519,14 @@ async def receipt_callback(
                         pass
 
             # =================================================
-            # SUCCESS MESSAGE
+            # SUCCESS
             # =================================================
 
             item_count = len(
-                pending["items"]
+                pending.get(
+                    "items",
+                    [],
+                )
             )
 
             await query.edit_message_text(
@@ -1603,11 +1557,12 @@ async def receipt_callback(
             # =================================================
 
             await send_budget_warning(
-                update
+                update,
+                context,
             )
 
             # =================================================
-            # CLEAR PENDING
+            # CLEAR STATE
             # =================================================
 
             context.user_data.pop(
@@ -1640,7 +1595,7 @@ async def receipt_callback(
 
 
 # ============================================================
-# EDIT RECEIPT MENU
+# RECEIPT EDIT MENU
 # ============================================================
 
 async def receipt_edit_menu(
@@ -1753,7 +1708,7 @@ async def receipt_edit_menu(
 
 
 # ============================================================
-# EDIT FIELD
+# RECEIPT EDIT FIELD
 # ============================================================
 
 async def receipt_edit_field(
@@ -1847,7 +1802,7 @@ async def receipt_edit_field(
 
 
 # ============================================================
-# HANDLE EDIT TEXT
+# RECEIPT EDIT TEXT
 # ============================================================
 
 async def receipt_edit_text(
@@ -1880,7 +1835,10 @@ async def receipt_edit_text(
 
         return
 
-    value = update.message.text.strip()
+    value = (
+        update.message.text
+        .strip()
+    )
 
     # ========================================================
     # MERCHANT
@@ -1995,15 +1953,10 @@ async def receipt_edit_text(
         categories = [
 
             "Makanan",
-
             "Transportasi",
-
             "Belanja",
-
             "Kesehatan",
-
             "Hiburan",
-
             "Lainnya",
 
         ]
@@ -2056,7 +2009,7 @@ async def receipt_edit_text(
     )
 
     # ========================================================
-    # SHOW UPDATED DATA
+    # SHOW UPDATED
     # ========================================================
 
     await show_receipt_confirmation(
@@ -2066,7 +2019,7 @@ async def receipt_edit_text(
 
 
 # ============================================================
-# EDIT BACK
+# RECEIPT EDIT BACK
 # ============================================================
 
 async def receipt_edit_back(
